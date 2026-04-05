@@ -748,13 +748,48 @@ Our test system: **AMD Ryzen 9 8940HX (16C/32T) + NVIDIA RTX 5070 Laptop (8GB) +
 |---------|-------|-----|
 | `GPU: Disabled (CPU-only mode)` | CUDA not found | Install CUDA toolkit, ensure `nvcc` is in PATH |
 | First run is slow (~450ms extra) | CUDA driver init | Normal. Subsequent runs are full speed. |
-| `Killed` or `OOM` on bench | Not enough RAM | Use compress+decompress separately (not bench) for large files |
+| `Killed` or no output after starting | Not enough RAM (see below) | Use compress+decompress separately |
 | GPU memory errors | VRAM < 8 GB | Use `--par 6` for smaller GPU transform blocks |
 | `GLIBC_2.38 not found` | Old Linux | Need Ubuntu 24.04+ or Fedora 39+. Or glibc 2.38+. |
 | Speeds lower than reference | Different hardware | Expected. Run `./apex tune` for YOUR optimal config. |
 | Speed drops during long benchmarks | Thermal throttling | Add `sleep 10` between datasets. Desktop/server won't have this. |
 | `command not found` | Not executable | `chmod +x apex` |
 | `No such file or directory` for datasets | Not downloaded | Run `./download_datasets.sh` first |
+
+### If bench crashes or gets killed (OOM)
+
+The `bench` command loads the entire file into RAM three times (original + compressed + decompressed). For large files this can exceed available memory:
+
+| File Size | RAM needed for bench | RAM needed for compress+decompress |
+|-----------|---------------------|------------------------------------|
+| 200 MB | ~600 MB | ~300 MB |
+| 1 GB | ~3 GB | ~1.5 GB |
+| 3 GB | ~9 GB | ~4.5 GB |
+
+**How to tell if bench failed from OOM:**
+```bash
+# If you see any of these, it's an OOM:
+# - "Killed" message
+# - Process exits with no output after "Config" header
+# - Shell returns with no error message
+# - dmesg shows "Out of memory: Killed process"
+
+# Check with:
+dmesg | tail -5    # Look for "oom-kill" or "Out of memory"
+```
+
+**Fix — test with compress + decompress instead:**
+```bash
+# This uses much less RAM (no triple-buffering)
+./apex compress data/realworld/grch38.fna /tmp/test.apex -mt
+./apex decompress /tmp/test.apex /tmp/test_out
+cmp data/realworld/grch38.fna /tmp/test_out && echo "PASS"
+rm -f /tmp/test.apex /tmp/test_out
+
+# To measure speed, use time:
+time ./apex compress data/realworld/grch38.fna /tmp/test.apex -mt
+# speed = file_size_MB / real_seconds
+```
 
 ### Diagnostic commands
 
