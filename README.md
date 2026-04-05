@@ -53,6 +53,7 @@ We've published results showing high ratio at high speed — a combination no ex
 | `apex-gpu-avx512` | 16 MB | Yes | AVX-512 | GPU + AVX-512 CPU (Zen 4+, Intel 12th gen+). Faster decompress. |
 | `apex-cpu-avx2` | 1.3 MB | **No** | AVX2 | **CPU-only** — no CUDA needed. Any CPU from 2013+. |
 | `apex-cpu-avx512` | 1.3 MB | **No** | AVX-512 | **CPU-only** — no CUDA needed. Zen 4+, Intel 12th gen+. Fastest CPU-only. |
+| `apex-cpu-sse42` | 1.1 MB | **No** | SSE4.2 | **CPU-only** — oldest CPUs. Sandy Bridge+ (2011+). No AVX needed. |
 | `download_datasets.sh` | 15 KB | | | Downloads benchmark datasets into `data/` |
 | `verify.sh` | 7 KB | | | Independent verification using standard Unix tools |
 | `sysinfo.sh` | 3 KB | | | Prints full system info (CPU, GPU, RAM, CUDA, OS) |
@@ -92,17 +93,19 @@ Do you have an NVIDIA GPU + CUDA?
 ├─ YES → Does your CPU support AVX-512?
 │        ├─ YES (Zen 4+, Intel 12th+) → apex-gpu-avx512  (fastest)
 │        └─ NO  (older CPU)           → apex  (default, always works)
-└─ NO  → Does your CPU support AVX-512?
-         ├─ YES → apex-cpu-avx512  (fastest CPU-only)
-         └─ NO  → apex-cpu-avx2   (works on any CPU from 2013+)
+└─ NO  → Does your CPU support AVX2?
+         ├─ YES + AVX-512 → apex-cpu-avx512  (fastest CPU-only)
+         ├─ YES           → apex-cpu-avx2   (any CPU from 2013+)
+         └─ NO  (very old) → apex-cpu-sse42  (Sandy Bridge+ 2011+)
 ```
 
 | Your System | Best Binary | What it needs |
 |------------|------------|--------------|
-| NVIDIA GPU + AVX-512 CPU (Zen 4+, Intel 12th+) | **`apex-gpu-avx512`** | CUDA + AVX-512 |
+| NVIDIA GPU + AVX-512 CPU | **`apex-gpu-avx512`** | CUDA + AVX-512 |
 | NVIDIA GPU + older CPU | **`apex`** (default) | CUDA + AVX2 |
-| No GPU + AVX-512 CPU | **`apex-cpu-avx512`** | Just AVX-512, no CUDA |
-| No GPU + any CPU | **`apex-cpu-avx2`** | Just AVX2, no CUDA (any CPU from 2013+) |
+| No GPU + AVX-512 CPU | **`apex-cpu-avx512`** | Just AVX-512 |
+| No GPU + AVX2 CPU (2013+) | **`apex-cpu-avx2`** | Just AVX2 |
+| No GPU + old CPU (2011+) | **`apex-cpu-sse42`** | Just SSE4.2 |
 
 > **Note:** Using `apex` (default) on an AVX-512 CPU works fine — correct results, good speed. You just won't get the extra decompress boost that `apex-gpu-avx512` provides. It never crashes; it just doesn't use the wider instructions.
 
@@ -276,7 +279,7 @@ git clone https://github.com/Rkcr7/apex-testing.git
 cd apex-testing
 
 # Make binaries executable
-chmod +x apex apex-gpu-avx2 apex-gpu-avx512 apex-cpu-avx2 apex-cpu-avx512 verify.sh download_datasets.sh sysinfo.sh
+chmod +x apex apex-gpu-avx2 apex-gpu-avx512 apex-cpu-avx2 apex-cpu-avx512 apex-cpu-sse42 verify.sh download_datasets.sh sysinfo.sh
 
 # Print your system info (share this with benchmarks)
 ./sysinfo.sh
