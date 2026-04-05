@@ -82,7 +82,8 @@ if nvidia-smi &>/dev/null; then
   else echo "Use: apex (default)"; fi
 else
   if grep -q avx512 /proc/cpuinfo; then echo "Use: apex-cpu-avx512";
-  else echo "Use: apex-cpu-avx2"; fi
+  elif grep -q avx2 /proc/cpuinfo; then echo "Use: apex-cpu-avx2";
+  else echo "Use: apex-cpu-sse42"; fi
 fi
 ```
 
@@ -106,6 +107,8 @@ Do you have an NVIDIA GPU + CUDA?
 | No GPU + AVX-512 CPU | **`apex-cpu-avx512`** | Just AVX-512 |
 | No GPU + AVX2 CPU (2013+) | **`apex-cpu-avx2`** | Just AVX2 |
 | No GPU + old CPU (2011+) | **`apex-cpu-sse42`** | Just SSE4.2 |
+
+> **Note on `apex-cpu-sse42`:** This binary is verified to contain zero AVX/AVX2/AVX-512 instructions (confirmed via `objdump`). Round-trip tested and cross-compatible with all other binaries. However, it has not been tested on actual pre-AVX2 hardware (Sandy Bridge/Ivy Bridge). If you have such hardware and test it, please share your results.
 
 > **Note:** Using `apex` (default) on an AVX-512 CPU works fine — correct results, good speed. You just won't get the extra decompress boost that `apex-gpu-avx512` provides. It never crashes; it just doesn't use the wider instructions.
 

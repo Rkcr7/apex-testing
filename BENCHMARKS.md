@@ -736,11 +736,19 @@ bsc uses a stronger coding model — it compresses ~5-14% better on mixed/text d
 
 ## CPU-Only Mode (No GPU Required)
 
-APEX works without any GPU — the included binaries automatically fall back to CPU mode if no NVIDIA GPU or CUDA is available. Ratios are identical to GPU mode.
+APEX works without any GPU. Three CPU-only binaries are included:
 
-The numbers below are from a dedicated CPU-only build optimized for maximum CPU performance. The included GPU binary also works without GPU (correct results, slightly lower speed). A dedicated CPU-only binary will be included in a future release.
+| Binary | CPU Requirement | Year | Size |
+|--------|---------------|------|------|
+| `apex-cpu-avx2` | AVX2 (Haswell+) | 2013+ | 1.3 MB |
+| `apex-cpu-avx512` | AVX-512 (Zen 4+, Intel 12th+) | 2020+ | 1.3 MB |
+| `apex-cpu-sse42` | SSE4.2 (Sandy Bridge+) | 2011+ | 1.1 MB |
 
-Tested on our development machine (Ryzen 9 8940HX, 16C/32T, Zen 4, 14 workers, no GPU).
+All produce identical compressed files — cross-compatible with each other and with GPU binaries. Ratios are identical to GPU mode.
+
+> **Note:** `apex-cpu-sse42` is verified to contain zero AVX instructions (`objdump` confirmed). It has not been tested on actual pre-AVX2 hardware. If you have Sandy Bridge / Ivy Bridge era hardware, please share test results.
+
+The numbers below are from `apex-cpu-avx2` on our development machine (Ryzen 9 8940HX, 16C/32T, Zen 4, 14 workers, no GPU).
 
 ### CPU-Only Per-Dataset Results (All Configs)
 
