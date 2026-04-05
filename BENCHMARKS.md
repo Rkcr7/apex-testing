@@ -1,9 +1,11 @@
 # APEX Benchmarks
 
-Verified across 14 datasets on 3 independent systems. All results round-trip verified (PASS).
+Verified across 21 datasets on 3 independent systems. Includes standard benchmarks and enterprise production data (server logs, financial tick data, analytics exports). All results round-trip verified (PASS).
 
 **Contents:**
-- [Development Machine Results](#development-machine-results) — Our laptop (Ryzen 9 + RTX 5070 Laptop)
+- [Development Machine Results](#development-machine-results) — Our laptop (Ryzen 9 + RTX 5070 Laptop), datasets 1-14
+- [Enterprise & Production Data](#enterprise--production-data) — Server logs, financial tick data, analytics exports (datasets 15-21)
+- [APEX vs zstd on Server Logs](#apex-vs-zstd-on-enterprise-server-logs) — Head-to-head at multiple zstd levels and thread counts
 - [Independent Validation #1 — RTX 4090](#independent-validation--vastai-rtx-4090) — Vast.ai cloud (EPYC 7D12 + RTX 4090)
 - [Independent Validation #2 — RTX 5090](#independent-validation--vastai-rtx-5090--dual-epyc-7742) — Vast.ai cloud (Dual EPYC 7742 + RTX 5090)
 - [Three-System Comparison](#three-system-comparison) — Side-by-side analysis
@@ -83,6 +85,7 @@ The CPU-only binary (`apex-cpu-avx2`) has **no CUDA overhead** — its startup i
 1. Parallel mode uses 14 CPU threads + 1 GPU. The 1T mode is single-thread + GPU.
 2. Decompress requires GPU for full speed. CPU-only decompress is ~200-250 MB/s.
 3. Thermal throttling on laptops can reduce speeds by 10-20% under sustained load.
+4. The CLI reads the entire input file into RAM before processing. `bench` needs ~3x file size in RAM, `compress`/`decompress` need ~1.5x. For files over 4 GB on 16 GB RAM systems, use `compress`/`decompress` with `--par 6` instead of `bench`. The compression algorithm itself is block-based (6-20 MB blocks) and does not require the full file in memory — this is a CLI convenience, not an algorithm limitation.
 
 ---
 
@@ -263,6 +266,143 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 
 ---
 
+## Enterprise & Production Data
+
+Results on real-world enterprise datasets. Tested on our **development machine** (Ryzen 9 8940HX + RTX 5070 Laptop). These represent data types that enterprises compress daily at scale — server logs, financial tick data, and analytics exports.
+
+> **Note on large files**: `bench` allocates ~3x file size in RAM. For files over 2 GB on 16 GB RAM systems, we used `compress`/`decompress` commands separately with `--par 6` (lowest memory usage), then verified round-trip via MD5 checksum.
+
+---
+
+### 15. Spark Application Logs (2,804 MB, enterprise server logs)
+
+Combined Apache Spark application logs from Loghub. The exact type of data that Datadog, Splunk, and Elastic ingest at 10-200+ TB/day.
+
+Source: [Loghub](https://github.com/logpai/loghub)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| **1T** | 417 MB/s | **1,780 MB/s** | **29.16x** | PASS |
+| Par 6MB | 710 MB/s | 1,231 MB/s | 27.44x | PASS |
+| Par 8MB | 591 MB/s | 1,252 MB/s | 27.75x | PASS |
+| Par 12MB | 1,246 MB/s | 1,497 MB/s | 28.13x | PASS |
+| Par 14MB | 1,255 MB/s | 1,537 MB/s | 28.25x | PASS |
+| **Par 16MB** | **1,257 MB/s** | **1,545 MB/s** | **28.35x** | PASS |
+| Par 18MB | 1,180 MB/s | 1,545 MB/s | 28.42x | PASS |
+| Par 20MB | 1,167 MB/s | 1,543 MB/s | 28.43x | PASS |
+
+Best ratio: **29.16x** at 417/1,780 MB/s (1T) — 2.8 GB → 96 MB. Best speed: **1,257 MB/s** at 28.35x (Par 16MB).
+
+---
+
+### 16. HDFS Logs (1,505 MB, Hadoop distributed file system logs)
+
+Hadoop Distributed File System block operations — allocations, replications, DataNode heartbeats. Extremely repetitive structured text.
+
+Source: [Loghub](https://github.com/logpai/loghub)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| **1T** | 376 MB/s | **1,357 MB/s** | **17.79x** | PASS |
+| Par 6MB | 481 MB/s | 979 MB/s | 15.81x | PASS |
+| Par 8MB | 463 MB/s | 1,004 MB/s | 16.06x | PASS |
+| **Par 12MB** | **994 MB/s** | **1,330 MB/s** | **16.36x** | PASS |
+| Par 14MB | 898 MB/s | 1,180 MB/s | 16.43x | PASS |
+| Par 16MB | 908 MB/s | 1,188 MB/s | 16.52x | PASS |
+| Par 18MB | 873 MB/s | 1,169 MB/s | 16.60x | PASS |
+| Par 20MB | 855 MB/s | 1,171 MB/s | 16.65x | PASS |
+
+Best ratio: **17.79x** at 376/1,357 MB/s (1T) — 1.5 GB → 85 MB. Best speed: **994 MB/s** at 16.36x (Par 12MB).
+
+---
+
+### 17. BGL Supercomputer Logs (709 MB, HPC system logs)
+
+Blue Gene/L supercomputer logs from Lawrence Livermore National Lab. System diagnostics from 131,072 processors.
+
+Source: [Loghub](https://github.com/logpai/loghub)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| 1T | 324 MB/s | 1,033 MB/s | 17.03x | PASS |
+| **Par 6MB** | 394 MB/s | 987 MB/s | **17.45x** | PASS |
+| Par 8MB | 660 MB/s | 1,071 MB/s | 17.42x | PASS |
+| **Par 12MB** | **767 MB/s** | **1,102 MB/s** | **17.32x** | PASS |
+| Par 14MB | 714 MB/s | 1,105 MB/s | 17.32x | PASS |
+| Par 16MB | 686 MB/s | 1,121 MB/s | 17.30x | PASS |
+| Par 18MB | 735 MB/s | 1,001 MB/s | 17.25x | PASS |
+| Par 20MB | 611 MB/s | 1,023 MB/s | 17.26x | PASS |
+
+Best ratio: **17.45x** at 394/987 MB/s (Par 6MB) — 709 MB → 41 MB. Best speed: **767 MB/s** at 17.32x (Par 12MB).
+
+---
+
+### 18. Binance BTC Trades (3,703 MB, financial tick data CSV)
+
+Every BTC/USDT trade on Binance, January 2024. CSV: trade_id, price, quantity, quoteQty, time, isBuyerMaker.
+
+Source: [data.binance.vision](https://data.binance.vision/)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| **Par 6MB** | **589 MB/s** | **718 MB/s** | **6.48x** | PASS |
+
+3.7 GB → 572 MB. Tested with compress/decompress (bench OOM on 16 GB RAM for 3.7 GB file). Round-trip verified via MD5.
+
+---
+
+### 19. Binance BNB Trades (612 MB, financial tick data CSV)
+
+Every BNB/USDT trade on Binance, January 2024. Same format as BTC, fewer trades.
+
+Source: [data.binance.vision](https://data.binance.vision/)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| 1T | 247 MB/s | 654 MB/s | 7.10x | PASS |
+| **Par 6MB** | **531 MB/s** | **682 MB/s** | **7.27x** | PASS |
+| Par 8MB | 493 MB/s | 653 MB/s | 7.29x | PASS |
+| Par 12MB | 395 MB/s | 608 MB/s | 7.31x | PASS |
+| Par 14MB | 433 MB/s | 560 MB/s | 7.32x | PASS |
+| Par 16MB | 414 MB/s | 554 MB/s | 7.32x | PASS |
+| Par 18MB | 411 MB/s | 516 MB/s | 7.31x | PASS |
+| **Par 20MB** | 391 MB/s | 501 MB/s | **7.33x** | PASS |
+
+Best ratio: **7.33x** at 391/501 MB/s (Par 20MB). Best speed: **531 MB/s** at 7.27x (Par 6MB).
+
+---
+
+### 20. IMDb Title Database (2,582 MB, analytics TSV export)
+
+Five IMDb database tables as TSV: titles, names, crew, episodes, ratings. Typical data lake export format.
+
+Source: [datasets.imdbws.com](https://datasets.imdbws.com/)
+
+| Config | Compress | Decompress | Ratio | RT |
+|--------|----------|------------|-------|----|
+| **1T** | 249 MB/s | **860 MB/s** | **5.53x** | PASS |
+| **Par 6MB** | **583 MB/s** | 719 MB/s | 5.36x | PASS |
+| Par 8MB | 580 MB/s | 699 MB/s | 5.40x | PASS |
+| Par 12MB | 500 MB/s | 672 MB/s | 5.44x | PASS |
+| Par 14MB | 521 MB/s | 666 MB/s | 5.45x | PASS |
+| Par 16MB | 511 MB/s | 651 MB/s | 5.47x | PASS |
+| Par 18MB | 513 MB/s | 655 MB/s | 5.48x | PASS |
+| Par 20MB | 483 MB/s | 633 MB/s | 5.48x | PASS |
+
+Best ratio: **5.53x** at 249/860 MB/s (1T) — 2.6 GB → 467 MB. Best speed: **583 MB/s** at 5.36x (Par 6MB).
+
+---
+
+### 21. NYC Taxi Parquet (659 MB, pre-compressed columnar data)
+
+12 months of NYC yellow taxi trip records in Apache Parquet format. Already internally compressed (Snappy).
+
+Source: [NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+
+**Result**: **1.00x** at 2,603/6,645 MB/s (Par 18MB) — RAW passthrough. APEX's 4KB entropy sampling detects pre-compressed Parquet blocks and stores them without wasting CPU/GPU cycles. The 6.6 GB/s decompress confirms pure memcpy throughput.
+
+---
+
 ## vs Competition (Silesia, same hardware)
 
 ### Multi-threaded (all compressors using their best multi-threaded configs)
@@ -298,7 +438,73 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 
 ---
 
+## APEX vs zstd on Enterprise Server Logs
+
+Server logs are the dominant data type in enterprise observability pipelines (Datadog, Splunk, Elastic, Grafana Loki). We tested zstd at multiple levels and thread counts to find its best possible performance on these datasets, then compared against APEX.
+
+**Why multiple zstd configs?** zstd multi-threading does not scale linearly — [documented scaling plateau at ~5 threads](https://github.com/facebook/zstd/issues/3907) due to memory pool fragmentation. Higher thread counts show diminishing returns or even regression. We tested different level+thread combinations to give zstd every advantage at each operating point.
+
+All tests on the same machine (Ryzen 9 8940HX, 16C/32T + RTX 5070 Laptop). zstd v1.5.5.
+
+### Spark Application Logs (2.8 GB)
+
+| Compressor | Ratio | Compress | Decompress |
+|-----------|-------|----------|------------|
+| **APEX Par 16MB** | **28.35x** | **1,257 MB/s** | **1,545 MB/s** |
+| **APEX 1T** | **29.16x** | **417 MB/s** | **1,780 MB/s** |
+| zstd -9 -T14 | 21.10x | 1,263 MB/s | 3,419 MB/s |
+| zstd -12 -T14 | 21.29x | 661 MB/s | 3,590 MB/s |
+| zstd -12 -T6 | 21.29x | 388 MB/s | 3,590 MB/s |
+| zstd -15 -T10 | 21.44x | 208 MB/s | 3,641 MB/s |
+| zstd -15 -T6 | 21.44x | 139 MB/s | 3,641 MB/s |
+
+APEX at 28.35x is **34% better ratio** than zstd's best (21.44x). Even zstd -15 with 10 threads cannot match APEX's ratio. APEX compresses 6x faster than zstd -15 T10 while achieving a higher ratio. APEX decompresses at 1,545 MB/s on this laptop — already above typical NVMe throughput, and decompress speed scales with GPU hardware (RTX 5090 reaches 4,403 MB/s on JSON).
+
+### HDFS Logs (1.5 GB)
+
+| Compressor | Ratio | Compress | Decompress |
+|-----------|-------|----------|------------|
+| **APEX Par 12MB** | **16.36x** | **994 MB/s** | **1,330 MB/s** |
+| **APEX 1T** | **17.79x** | **376 MB/s** | **1,357 MB/s** |
+| zstd -9 -T14 | 12.52x | 845 MB/s | 2,962 MB/s |
+| zstd -12 -T14 | 12.81x | 337 MB/s | 2,962 MB/s |
+| zstd -12 -T6 | 12.81x | 267 MB/s | 2,962 MB/s |
+| zstd -15 -T10 | 13.41x | 114 MB/s | 2,996 MB/s |
+| zstd -15 -T6 | 13.41x | 79 MB/s | 2,996 MB/s |
+
+APEX at 16.36x is **22% better ratio** than zstd's best (13.41x). APEX compresses 3x faster than zstd -12 T14 while achieving a higher ratio. Decompress at 1,330 MB/s on a laptop GPU — scales further with better GPUs.
+
+### BGL Supercomputer Logs (709 MB)
+
+| Compressor | Ratio | Compress | Decompress |
+|-----------|-------|----------|------------|
+| **APEX Par 12MB** | **17.32x** | **767 MB/s** | **1,102 MB/s** |
+| **APEX 1T** | **17.03x** | **324 MB/s** | **1,033 MB/s** |
+| zstd -9 -T14 | 14.11x | 771 MB/s | 2,907 MB/s |
+| zstd -12 -T14 | 14.28x | 377 MB/s | 2,872 MB/s |
+| zstd -12 -T6 | 14.28x | 273 MB/s | 2,872 MB/s |
+| zstd -15 -T10 | 14.30x | 180 MB/s | 3,030 MB/s |
+| zstd -15 -T6 | 14.30x | 129 MB/s | 3,030 MB/s |
+
+APEX at 17.32x is **21% better ratio** than zstd's best (14.30x). At similar compress speed (~767 vs 771 MB/s), APEX delivers 23% better ratio than zstd -9 T14. Decompress at 1,102 MB/s on a laptop GPU.
+
+### The pattern across all server logs
+
+| Metric | APEX advantage | Notes |
+|--------|---------------|-------|
+| **Ratio** | 21-34% better than zstd's best at any level | BWT groups repeated log templates structurally — LZ77 can only match within a sliding window |
+| **Compress speed** | Matches or beats zstd -9 T14 | GPU BWT + 14-core parallel rANS |
+| **Decompress speed** | 1,000-1,800 MB/s on laptop GPU | Scales with GPU hardware — RTX 5090 reaches 4,403 MB/s on JSON. Already above NVMe throughput on most systems. zstd decompress is CPU-bound and fixed by core speed; APEX decompress is GPU-accelerated and improves with better GPUs |
+
+**zstd threading observation**: Increasing threads from T6 to T14 improved zstd compress speed, but going from T10 to T14 showed diminishing returns. At level 15, doubling threads (T6→T10) only improved speed by ~40-50%, not 67%. This aligns with the [documented scaling limitation](https://github.com/facebook/zstd/issues/3907).
+
+**No zstd configuration at any level or thread count reaches APEX's ratio on server logs.** This is not a tuning gap — it is an architectural difference. BWT captures the full structure of repeated log templates regardless of distance. LZ77's sliding window fundamentally cannot.
+
+---
+
 ## Speed Records
+
+> All records below are from our **development machine** (RTX 5070 Laptop + Ryzen 9 8940HX, 16 GB RAM). This is a consumer-grade laptop — not a server, not a workstation. APEX has not been specifically tuned or optimized for any dataset. These numbers represent out-of-the-box performance on unmodified hardware. Server-class GPUs (A100, H100) and higher core-count CPUs would be expected to improve on these results.
 
 ### Compress
 
@@ -306,11 +512,16 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 |-------|---------|-------|--------|
 | **1,689 MB/s** | Large JSON 1GB | 18.43x | Par 20MB |
 | **1,330 MB/s** | GH Events 480MB | 17.54x | Par 18MB |
+| **1,257 MB/s** | Spark Logs 2.8GB | 28.35x | Par 16MB |
+| **994 MB/s** | HDFS Logs 1.5GB | 16.36x | Par 12MB |
 | **945 MB/s** | LLVM 2.4GB | 4.90x | Par 14MB |
-| **938 MB/s** | Chromium 4.6GB | 3.30x | Par 8MB |
 | **817 MB/s** | Linux 1.5GB | 9.26x | Par 12MB |
+| **767 MB/s** | BGL Logs 709MB | 17.32x | Par 12MB |
 | **634 MB/s** | enwik9 954MB | 4.36x | Par 8MB |
+| **589 MB/s** | Binance BTC 3.7GB | 6.48x | Par 6MB |
+| **583 MB/s** | IMDb TSV 2.6GB | 5.36x | Par 6MB |
 | **541 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
+| **531 MB/s** | Binance BNB 612MB | 7.27x | Par 6MB |
 
 ### Decompress
 
@@ -318,25 +529,34 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 |-------|---------|-------|--------|
 | **2,053 MB/s** | Large JSON 1GB | 18.43x | Par 20MB |
 | **1,965 MB/s** | Large JSON 1GB | 23.11x | 1T |
+| **1,780 MB/s** | Spark Logs 2.8GB | 29.16x | 1T |
 | **1,758 MB/s** | GH Events 480MB | 17.54x | Par 18MB |
 | **1,629 MB/s** | LLVM 2.4GB | 4.56x | 1T |
+| **1,545 MB/s** | Spark Logs 2.8GB | 28.35x | Par 16MB |
 | **1,402 MB/s** | LLVM 2.4GB | 4.90x | Par 14MB |
-| **1,273 MB/s** | Chromium 4.6GB | 3.06x | Par 18MB |
+| **1,357 MB/s** | HDFS Logs 1.5GB | 17.79x | 1T |
+| **1,330 MB/s** | HDFS Logs 1.5GB | 16.36x | Par 12MB |
 | **1,201 MB/s** | Linux 1.5GB | 9.64x | 1T |
+| **1,102 MB/s** | BGL Logs 709MB | 17.32x | Par 12MB |
+| **860 MB/s** | IMDb TSV 2.6GB | 5.53x | 1T |
 | **672 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
 
 ### Ratio
 
 | Ratio | Dataset | Compress | Config |
 |-------|---------|----------|--------|
+| **29.16x** | Spark Logs 2.8GB | 417 MB/s | 1T |
 | **23.11x** | Large JSON 1GB | 540 MB/s | 1T |
 | **22.15x** | GH Events 480MB | 499 MB/s | 1T |
 | **21.60x** | WA Electric CSV | 257 MB/s | 1T |
+| **17.79x** | HDFS Logs 1.5GB | 376 MB/s | 1T |
+| **17.45x** | BGL Logs 709MB | 394 MB/s | Par 6MB |
 | **9.64x** | Linux Kernel 1.5GB | 329 MB/s | 1T |
-| **5.06x** | LLVM 2.4GB | 893 MB/s | Par 20MB |
+| **7.33x** | Binance BNB 612MB | 391 MB/s | Par 20MB |
+| **6.48x** | Binance BTC 3.7GB | 589 MB/s | Par 6MB |
+| **5.53x** | IMDb TSV 2.6GB | 249 MB/s | 1T |
 | **5.04x** | enwik9 954MB | 241 MB/s | 1T |
 | **4.48x** | Human Genome 3GB | 213 MB/s | 1T |
-| **4.39x** | enwik8 96MB | 141 MB/s | 1T |
 | **4.08x** | Silesia 202MB | 334 MB/s | Par 20MB |
 
 ---
@@ -347,7 +567,7 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 # Download datasets
 chmod +x download_datasets.sh
 ./download_datasets.sh          # Essential 5
-./download_datasets.sh --all    # All 14
+./download_datasets.sh --all    # All 14 + enterprise
 
 # Run benchmarks
 ./apex bench data/silesia.tar

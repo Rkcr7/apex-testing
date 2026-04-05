@@ -1,14 +1,14 @@
 #!/bin/bash
 # ============================================================================
 # APEX Benchmark Dataset Downloader
-# Downloads all 14 benchmark datasets used in BENCHMARKS.md
+# Downloads benchmark datasets used in BENCHMARKS.md
 #
 # Usage:
-#   ./scripts/download_datasets.sh              # Download essential 5 datasets
-#   ./scripts/download_datasets.sh --all        # Download all 14 datasets
-#   ./scripts/download_datasets.sh --essential   # Download essential 5 (default)
-#   ./scripts/download_datasets.sh --list        # List all datasets and status
-#   ./scripts/download_datasets.sh --help        # Show help
+#   ./download_datasets.sh              # Download essential 5 datasets
+#   ./download_datasets.sh --all        # Download all 14 datasets + enterprise data
+#   ./download_datasets.sh --essential  # Download essential 5 (default)
+#   ./download_datasets.sh --list       # List all datasets and status
+#   ./download_datasets.sh --help       # Show help
 #
 # Essential 5 (~6.6 GB download, ~8.4 GB on disk):
 #   1. Silesia Corpus     (202 MB) — universal mixed benchmark
@@ -17,9 +17,9 @@
 #   4. Large JSON         (1.1 GB) — repetitive JSON (2 GB/s decompress!)
 #   5. Human Genome       (3.0 GB) — DNA reference genome (BWT showcase)
 #
-# All 14 (~20 GB download, ~17 GB on disk):
-#   Essential 5 + enwik8, GH Events, LLVM Source, Chromium Source,
-#   Wiki SQL, WA Electric CSV, Firefox, Taxi Parquet, Pizza&Chili English
+# All 14 (~20 GB on disk):
+#   Essential 5 + enwik8, GH Events, LLVM, Wiki SQL, WA Electric CSV,
+#   Firefox, Taxi Parquet + Enterprise: IMDb TSV, Binance BNB trades
 # ============================================================================
 set -euo pipefail
 
@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 DATA_DIR="$PROJECT_DIR/data"
 RW_DIR="$DATA_DIR/realworld"
+ENT_DIR="$DATA_DIR/enterprise"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -224,6 +225,52 @@ dl_genome() {
     mv "$RW_DIR/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna" "$RW_DIR/grch38.fna" 2>/dev/null || true
 }
 
+# ---- Enterprise dataset downloaders ----------------------------------------
+
+dl_loghub_spark() {
+    local tmp_dir="$ENT_DIR/loghub_tmp"
+    mkdir -p "$tmp_dir"
+    # Download Spark logs from Loghub (Zenodo)
+    download "https://zenodo.org/records/8196385/files/Spark.tar.gz?download=1" \
+        "$tmp_dir/Spark.tar.gz" || return 1
+    log_info "  Extracting Spark logs..."
+    tar xzf "$tmp_dir/Spark.tar.gz" -C "$tmp_dir" 2>/dev/null || true
+    # Combine all Spark log files
+    find "$tmp_dir" -name "*.log" -o -name "*.log_structured*" 2>/dev/null | head -20 | while read f; do
+        [ -f "$f" ] && cat "$f"
+    done > "$ENT_DIR/spark_logs.log" 2>/dev/null
+    # If combined is too small, try alternate structure
+    if [ ! -s "$ENT_DIR/spark_logs.log" ] || [ "$(stat -c%s "$ENT_DIR/spark_logs.log" 2>/dev/null)" -lt 1000000 ]; then
+        find "$tmp_dir" -type f -name "*.csv" -o -name "*.log" | head -5 | xargs cat > "$ENT_DIR/spark_logs.log" 2>/dev/null || true
+    fi
+    rm -rf "$tmp_dir"
+}
+
+dl_imdb_tsv() {
+    local tmp_dir="$ENT_DIR/imdb_tmp"
+    mkdir -p "$tmp_dir"
+    local files=("title.basics.tsv.gz" "name.basics.tsv.gz" "title.crew.tsv.gz" "title.episode.tsv.gz" "title.ratings.tsv.gz")
+    for f in "${files[@]}"; do
+        download "https://datasets.imdbws.com/$f" "$tmp_dir/$f" || continue
+        log_info "  Decompressing $f..."
+        gunzip -f "$tmp_dir/$f"
+    done
+    log_info "  Creating imdb_tsv.tar..."
+    tar cf "$ENT_DIR/imdb_tsv.tar" -C "$tmp_dir" . 2>/dev/null
+    rm -rf "$tmp_dir"
+}
+
+dl_binance_bnb() {
+    local tmp_dir="$ENT_DIR/binance_tmp"
+    mkdir -p "$tmp_dir"
+    download "https://data.binance.vision/data/spot/monthly/trades/BNBUSDT/BNBUSDT-trades-2024-01.zip" \
+        "$tmp_dir/bnb.zip" || return 1
+    log_info "  Extracting BNB trades..."
+    unzip -o -q "$tmp_dir/bnb.zip" -d "$tmp_dir"
+    mv "$tmp_dir"/BNBUSDT*.csv "$ENT_DIR/binance_bnb_trades.csv" 2>/dev/null || true
+    rm -rf "$tmp_dir"
+}
+
 # ---- Dataset sets ----------------------------------------------------------
 
 download_essential() {
@@ -240,7 +287,7 @@ download_essential() {
 
 download_all() {
     echo ""
-    echo -e "${BOLD}=== APEX Complete Benchmark Suite (14 datasets, ~17 GB on disk) ===${NC}"
+    echo -e "${BOLD}=== APEX Complete Benchmark Suite (17 datasets, ~20 GB on disk) ===${NC}"
     echo ""
 
     # Essential 5
@@ -250,14 +297,19 @@ download_all() {
     fetch_dataset "4. Linux Kernel"       "$RW_DIR/linux-kernel.tar"         "1.5 GB"  dl_linux_kernel
     fetch_dataset "5. GH Events JSON"     "$RW_DIR/gh_events.json"           "480 MB"  dl_gh_events
     fetch_dataset "6. LLVM Source"        "$RW_DIR/llvm-source.tar"          "2.4 GB"  dl_llvm_source
-    fetch_dataset "7. Chromium Source"    "$RW_DIR/chromium-source.tar"      "4.6 GB"  dl_chromium_source
-    fetch_dataset "8. Large JSON"         "$RW_DIR/large_json_1gb.json"      "1.1 GB"  dl_large_json
-    fetch_dataset "9. Wiki SQL"           "$RW_DIR/wiki_sql.sql"             "101 MB"  dl_wiki_sql
-    fetch_dataset "10. WA Electric CSV"   "$RW_DIR/wa_electric.csv"          "65 MB"   dl_wa_electric
-    fetch_dataset "11. Firefox"           "$RW_DIR/firefox.tar"              "79 MB"   dl_firefox
-    fetch_dataset "12. Taxi Parquet"      "$RW_DIR/taxi.parquet"             "48 MB"   dl_taxi_parquet
-    fetch_dataset "13. Pizza&Chili English" "$RW_DIR/english"                "2.1 GB"  dl_english
-    fetch_dataset "14. Human Genome"      "$RW_DIR/grch38.fna"               "3.0 GB"  dl_genome
+    fetch_dataset "7. Large JSON"         "$RW_DIR/large_json_1gb.json"      "1.1 GB"  dl_large_json
+    fetch_dataset "8. Wiki SQL"           "$RW_DIR/wiki_sql.sql"             "101 MB"  dl_wiki_sql
+    fetch_dataset "9. WA Electric CSV"    "$RW_DIR/wa_electric.csv"          "65 MB"   dl_wa_electric
+    fetch_dataset "10. Firefox"           "$RW_DIR/firefox.tar"              "79 MB"   dl_firefox
+    fetch_dataset "11. Taxi Parquet"      "$RW_DIR/taxi.parquet"             "48 MB"   dl_taxi_parquet
+    fetch_dataset "12. Human Genome"      "$RW_DIR/grch38.fna"               "3.0 GB"  dl_genome
+
+    # Enterprise datasets
+    echo ""
+    echo -e "${BOLD}--- Enterprise & Production Data ---${NC}"
+    echo ""
+    fetch_dataset "13. IMDb TSV"          "$ENT_DIR/imdb_tsv.tar"            "2.6 GB"  dl_imdb_tsv
+    fetch_dataset "14. Binance BNB Trades" "$ENT_DIR/binance_bnb_trades.csv" "612 MB"  dl_binance_bnb
 }
 
 list_datasets() {
@@ -318,7 +370,7 @@ Usage:
 Options:
   --essential, -e   Download 5 key datasets (~8.4 GB):
                       Silesia, enwik9, Linux Kernel, Large JSON, Human Genome
-  --all, -a         Download all 14 benchmark datasets (~17 GB)
+  --all, -a         Download all 14 benchmark + enterprise datasets (~20 GB)
   --list, -l        Show all datasets and their download status
   --help, -h        Show this help
 
@@ -345,7 +397,7 @@ main() {
     need_cmd unzip
     need_cmd tar
 
-    mkdir -p "$DATA_DIR" "$RW_DIR"
+    mkdir -p "$DATA_DIR" "$RW_DIR" "$ENT_DIR"
 
     local mode="${1:---essential}"
 

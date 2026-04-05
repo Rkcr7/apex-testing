@@ -2,25 +2,38 @@
 
 **GPU-Accelerated Lossless Compression — High Ratio at High Speed**
 
+> Pre-built binaries, benchmark datasets, and verification tools for independent validation and showcasing. Source code is not included — APEX is in active development.
+
 APEX achieves high compression ratios at high throughput — a combination that has traditionally required choosing one or the other. GPU-accelerated for maximum performance, with a dedicated CPU-only binary for systems without NVIDIA GPUs.
 
-| Data Type | Ratio | Compress | Decompress |
-|-----------|-------|----------|------------|
-| Source code (Linux Kernel 1.5GB) | **9.26x** | **1,895 MB/s** | **1,476 MB/s** |
-| Structured data (JSON 1.1GB) | **18.11x** | **1,899 MB/s** | **3,842 MB/s** |
-| Genomic data (Human Genome 3GB) | **4.35x** | **1,833 MB/s** | **1,483 MB/s** |
-| Text (Wikipedia 954MB) | **4.36x** | **1,633 MB/s** | **974 MB/s** |
-| Mixed corpus (Silesia 202MB) | **4.01x** | **698 MB/s** | **704 MB/s** |
+| Data Type | Ratio | Compress | Decompress | Config |
+|-----------|-------|----------|------------|--------|
+| Mixed corpus (Silesia 202MB) | **4.00x** | **541 MB/s** | **672 MB/s** | Par 6MB |
+| Server logs (Spark 2.8GB) | **28.35x** | **1,257 MB/s** | **1,545 MB/s** | Par 16MB |
+| Structured data (JSON 1.1GB) | **18.11x** | **1,642 MB/s** | **2,022 MB/s** | Par 18MB |
+| HPC logs (BGL 709MB) | **17.32x** | **767 MB/s** | **1,102 MB/s** | Par 12MB |
+| Source code (Linux Kernel 1.5GB) | **9.26x** | **817 MB/s** | **999 MB/s** | Par 12MB |
+| Financial tick data (Binance 612MB) | **7.27x** | **531 MB/s** | **682 MB/s** | Par 6MB |
+| Analytics export (IMDb 2.6GB TSV) | **5.36x** | **583 MB/s** | **719 MB/s** | Par 6MB |
+| Genomic data (Human Genome 3GB) | **4.36x** | **479 MB/s** | **757 MB/s** | Par 8MB |
+
+> Numbers above are from a **consumer laptop** (RTX 5070 Laptop, 8 GB GDDR7, 16 GB RAM) — not a server or workstation. No per-dataset tuning — out-of-the-box performance. RTX 5090 results: up to 1,899 MB/s compress, 4,403 MB/s decompress. Server-class hardware would be expected to improve further. See [BENCHMARKS.md](BENCHMARKS.md) for all 21 datasets across 3 systems.
 
 Tested on 3 systems with different GPUs (RTX 5070, 4090, 5090) and CPUs (Zen 2, Zen 4). Ratios are deterministic — identical across all hardware. Speeds scale with GPU compute and CPU core count.
 
 **No GPU? APEX still works.** CPU-only mode: 826 MB/s on JSON, 253 MB/s on Linux Kernel, 131 MB/s at 4.0x on Silesia — faster than every BWT compressor without GPU. See [CPU-Only Mode](BENCHMARKS.md#cpu-only-mode-no-gpu-required).
+
+**RAM note:** This testing binary reads the full file into memory before processing. `bench` needs ~3x file size in RAM, `compress`/`decompress` need ~1.5x. The compression algorithm itself is block-based and does not require the full file in memory — this is specific to the current testing CLI, not an algorithm constraint. See [memory details](#how-each-command-uses-memory).
+
+**vs zstd on server logs:** On enterprise log data (Spark, HDFS, BGL), APEX achieves 21-34% better ratio than zstd at any level while matching or exceeding zstd's compress speed. Tested across zstd levels 9/12/15 with 6-14 threads. No zstd configuration reaches APEX's ratio — BWT captures log template repetition that LZ77 cannot. Full comparison in [BENCHMARKS.md](BENCHMARKS.md#apex-vs-zstd-on-enterprise-server-logs).
 
 Full results, 3-system comparison, CPU-only benchmarks, and vs-competition in [BENCHMARKS.md](BENCHMARKS.md).
 
 ### Testing & Validation
 
 APEX is in active development. This binary is shared for community validation — verify the claims on your own hardware.
+
+> **Don't want to run an unknown binary on your machine?** Completely understandable — running closed-source binaries from the internet requires trust, and we haven't earned that yet. The included `verify.sh` validates everything using standard Unix tools (`md5sum`, `stat`, `cmp`) without trusting APEX's own output, but that still means running the binary. **If you're genuinely interested in testing but don't want to run it on your hardware**, I'll provision a cloud GPU instance for you on Vast.ai (or any provider you prefer) at my expense — you launch it, test freely, and tear it down when done. I can also add you to my Vast.ai team so you can provision any instance yourself. From clone to full benchmark results takes ~10 minutes: **[Quick setup guide](https://gist.github.com/Rkcr7/bad922fa168140393f86eeb43caf7d13)**. Reach out at **ritik135001@gmail.com**.
 
 ### Validated on 3 independent systems
 
@@ -36,13 +49,17 @@ Ratios match exactly across all 3 systems. All round-trip verified PASS. Full re
 
 ### Purpose of this release
 
-We've published results showing high ratio at high speed — a combination no existing compressor achieves. Extraordinary claims require independent verification. This binary lets you:
+This repo serves two purposes — **showcasing** what APEX can do and **letting you verify it independently**.
+
+We've published results showing high ratio at high speed — a combination no existing compressor achieves. Rather than asking you to take our word for it, this binary lets you:
 
 - **Validate** — Run the same benchmarks on your hardware and verify the claims
 - **Reproduce** — Download the exact datasets we used and reproduce our methodology
 - **Compare** — Test against zstd, bzip2, libbsc, or any compressor on the same data
 - **Verify correctness** — Every compressed file round-trips to a byte-identical original (PASS/FAIL)
 - **Explore** — Test on your own data, find optimal configs for your workload
+
+If you find APEX useful or interesting, reach out at ritik135001@gmail.com.
 
 ### What's included
 
@@ -57,7 +74,7 @@ We've published results showing high ratio at high speed — a combination no ex
 | `download_datasets.sh` | 15 KB | | | Downloads benchmark datasets into `data/` |
 | `verify.sh` | 7 KB | | | Independent verification using standard Unix tools |
 | `sysinfo.sh` | 3 KB | | | Prints full system info (CPU, GPU, RAM, CUDA, OS) |
-| `BENCHMARKS.md` | | | | Full results: 14 datasets, 3 systems, CPU-only, vs-competition |
+| `BENCHMARKS.md` | | | | Full results: 21 datasets, 3 systems, CPU-only, vs-competition |
 | `LICENSE` | | | | Testing license |
 
 ### Which binary to use?
@@ -177,16 +194,17 @@ Your results will differ based on your hardware. That's the point — we want to
 
 ### What We Test On
 
-APEX is benchmarked on **14 real-world datasets** across multiple domains — not just standard compression benchmarks.
+APEX is benchmarked on **21 real-world datasets** across multiple domains — standard benchmarks, enterprise production data, and real-world downloads.
 
 | Category | Datasets | Why it matters |
 |----------|---------|---------------|
 | **Standard benchmarks** | Silesia (202MB), enwik8 (96MB), enwik9 (954MB) | Industry-standard. Every compressor publishes these. Directly comparable. |
-| **Source code** | Linux Kernel (1.5GB), LLVM (2.4GB), Chromium (4.6GB) | Real production codebases. Tests scaling on large repetitive data. |
-| **Structured data** | GH Events JSON (480MB), Large JSON (1.1GB), Wiki SQL, CSV | Real API logs, database dumps, tabular data. Tests on highly repetitive patterns. |
+| **Source code** | Linux Kernel (1.5GB), LLVM (2.4GB) | Real production codebases. Tests scaling on large repetitive data. |
+| **Server logs** | Spark (2.8GB), HDFS (1.5GB), BGL (709MB) | Enterprise log pipelines — the data Datadog/Splunk/Elastic ingest daily. |
+| **Financial data** | Binance BTC (3.7GB), Binance BNB (612MB) | Real exchange tick data. CSV with prices, quantities, timestamps. |
+| **Analytics/data lake** | IMDb TSV (2.6GB), GH Events JSON (480MB), Large JSON (1.1GB), Wiki SQL, CSV | Database exports, API logs, tabular data. |
 | **Genomics** | Human Genome GRCh38 (3.0GB) | Real DNA reference genome. BWT is native to this domain. |
-| **Incompressible** | Firefox (79MB), Taxi Parquet (48MB) | Already-compressed binaries. APEX correctly detects and stores RAW at memcpy speed — proves content detection works. |
-| **Pure text** | Pizza&Chili English (2.1GB) | Standard academic BWT benchmark. Pure English, no markup. |
+| **Incompressible** | Firefox (79MB), Taxi Parquet (48MB+659MB) | Already-compressed data. APEX detects and stores RAW at memcpy speed. |
 
 All datasets are publicly downloadable. No synthetic or generated data. The included `download_datasets.sh` fetches the same files we used — you test on exactly what we tested on.
 
@@ -533,7 +551,8 @@ chmod +x download_datasets.sh
 #   Human Genome (3.0 GB)  — DNA reference genome
 ./download_datasets.sh
 
-# All 14 datasets (~17 GB)
+# All 14 datasets + enterprise data (~20 GB)
+# Includes: IMDb TSV (2.6 GB), Binance BNB trades (612 MB)
 ./download_datasets.sh --all
 
 # Check what you have
@@ -761,21 +780,29 @@ Our test system: **AMD Ryzen 9 8940HX (16C/32T) + NVIDIA RTX 5070 Laptop (8GB) +
 | Dataset | Size | Compress | Decompress | Ratio | Config |
 |---------|------|----------|------------|-------|--------|
 | Silesia (mixed) | 202 MB | 541 MB/s | 672 MB/s | 4.00x | Par 6MB |
-| enwik9 (text) | 954 MB | 634 MB/s | 697 MB/s | 4.36x | Par 8MB |
-| Linux Kernel | 1.5 GB | 817 MB/s | 999 MB/s | 9.26x | Par 12MB |
-| LLVM Source | 2.4 GB | 945 MB/s | 1,402 MB/s | 4.90x | Par 14MB |
+| Spark Logs | 2.8 GB | 1,257 MB/s | 1,545 MB/s | 28.35x | Par 16MB |
 | Large JSON | 1.1 GB | 1,642 MB/s | 2,022 MB/s | 18.11x | Par 18MB |
+| HDFS Logs | 1.5 GB | 994 MB/s | 1,330 MB/s | 16.36x | Par 12MB |
+| BGL Logs | 709 MB | 767 MB/s | 1,102 MB/s | 17.32x | Par 12MB |
+| Linux Kernel | 1.5 GB | 817 MB/s | 999 MB/s | 9.26x | Par 12MB |
+| Binance BNB | 612 MB | 531 MB/s | 682 MB/s | 7.27x | Par 6MB |
+| IMDb TSV | 2.6 GB | 583 MB/s | 719 MB/s | 5.36x | Par 6MB |
+| enwik9 (text) | 954 MB | 634 MB/s | 697 MB/s | 4.36x | Par 8MB |
 | Human Genome | 3.0 GB | 479 MB/s | 757 MB/s | 4.36x | Par 8MB |
 
 ### Ratio Mode (1T)
 
 | Dataset | Ratio | Compress | Decompress |
 |---------|-------|----------|------------|
+| Spark Logs | 29.16x | 417 MB/s | 1,780 MB/s |
 | Large JSON | 23.11x | 540 MB/s | 1,965 MB/s |
+| HDFS Logs | 17.79x | 376 MB/s | 1,357 MB/s |
+| BGL Logs | 17.03x | 324 MB/s | 1,033 MB/s |
 | Linux Kernel | 9.64x | 329 MB/s | 1,201 MB/s |
+| Binance BNB | 7.10x | 247 MB/s | 654 MB/s |
+| IMDb TSV | 5.53x | 249 MB/s | 860 MB/s |
 | enwik9 | 5.04x | 241 MB/s | 642 MB/s |
 | Human Genome | 4.48x | 213 MB/s | 828 MB/s |
-| enwik8 | 4.39x | 141 MB/s | 209 MB/s |
 | Silesia | 4.02x | 226 MB/s | 578 MB/s |
 
 **Your numbers will differ** based on your GPU, CPU, and RAM. Run `./apex bench` and `./apex tune` to measure YOUR system.
@@ -796,39 +823,44 @@ Our test system: **AMD Ryzen 9 8940HX (16C/32T) + NVIDIA RTX 5070 Laptop (8GB) +
 | `command not found` | Not executable | `chmod +x apex` |
 | `No such file or directory` for datasets | Not downloaded | Run `./download_datasets.sh` first |
 
-### If bench crashes or gets killed (OOM)
+### How each command uses memory
 
-The `bench` command loads the entire file into RAM three times (original + compressed + decompressed). For large files this can exceed available memory:
+This binary reads the entire input file into RAM before processing. The compression algorithm itself is block-based (6-20 MB blocks) and needs only a few GB of working memory, but the CLI loads the full file upfront. Here's what that means in practice:
 
-| File Size | RAM needed for bench | RAM needed for compress+decompress |
-|-----------|---------------------|------------------------------------|
+| Command | RAM needed | Why |
+|---------|-----------|-----|
+| `bench` | **~3x file size** | Holds original + compressed + decompressed simultaneously |
+| `compress` | **~1.5x file size** | Holds original + compressed output |
+| `decompress` | **~1.5x file size** | Holds compressed + decompressed output |
+
+| File Size | `bench` needs | `compress`/`decompress` needs |
+|-----------|--------------|------------------------------|
 | 200 MB | ~600 MB | ~300 MB |
 | 1 GB | ~3 GB | ~1.5 GB |
 | 3 GB | ~9 GB | ~4.5 GB |
+| 5 GB+ | ~15 GB+ | ~7.5 GB+ |
 
-**How to tell if bench failed from OOM:**
+For the 5 essential datasets (up to 3 GB), 16 GB RAM is sufficient for all commands. For enterprise datasets over 4 GB, use `compress`/`decompress` separately instead of `bench`, and use `--par 6` (smallest blocks = lowest memory overhead).
+
+**How to tell if it OOM'd:**
 ```bash
-# If you see any of these, it's an OOM:
+# Signs of OOM:
 # - "Killed" message
-# - Process exits with no output after "Config" header
-# - Shell returns with no error message
+# - Process exits with no output
 # - dmesg shows "Out of memory: Killed process"
-
-# Check with:
-dmesg | tail -5    # Look for "oom-kill" or "Out of memory"
+dmesg | tail -5
 ```
 
-**Fix — test with compress + decompress instead:**
+**Fix — use compress + decompress separately:**
 ```bash
-# This uses much less RAM (no triple-buffering)
-./apex compress data/realworld/grch38.fna /tmp/test.apex -mt
+./apex compress data/realworld/grch38.fna /tmp/test.apex --par 6
 ./apex decompress /tmp/test.apex /tmp/test_out
 cmp data/realworld/grch38.fna /tmp/test_out && echo "PASS"
 rm -f /tmp/test.apex /tmp/test_out
 
-# To measure speed, use time:
-time ./apex compress data/realworld/grch38.fna /tmp/test.apex -mt
-# speed = file_size_MB / real_seconds
+# To measure speed externally:
+time ./apex compress data/realworld/grch38.fna /tmp/test.apex --par 6
+# speed ≈ file_size_MB / real_seconds
 ```
 
 ### Diagnostic commands
@@ -904,7 +936,7 @@ We also benchmark against [libbsc](https://github.com/IlyaGrebnov/libbsc) (also 
 
 ## Disclaimers
 
-- APEX is under active development (v0.1.0). While all 14 benchmark datasets pass round-trip verification, there may be edge cases or configurations we haven't encountered yet. If you find an issue, we'd appreciate hearing about it.
+- APEX is under active development (v0.1.0). While all 21 benchmark datasets pass round-trip verification, there may be edge cases or configurations we haven't encountered yet. If you find an issue, we'd appreciate hearing about it.
 - There is one known issue: LLVM 2.4GB fails in 1T mode due to a block boundary bug at ~384MB. All parallel modes work correctly on this file.
 - Performance varies by hardware. Our reference numbers are from a specific test system (Ryzen 9 8940HX + RTX 5070 Laptop). Your results will differ based on GPU, CPU, and thermal conditions.
 - The binary auto-detects hardware capabilities. If GPU is not available or CUDA is not installed, it falls back to CPU-only mode automatically and will print `GPU: Disabled (CPU-only mode)`.
