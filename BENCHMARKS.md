@@ -30,8 +30,38 @@ Verified across 14 datasets on 3 independent systems. All results round-trip ver
 
 ## Methodology
 
-- **Data**: Pre-loaded into RAM. No disk I/O in timing measurements.
-- **Warmup**: GPU initialized before timing (standard practice, same as lzbench).
+### How `apex bench` measures speed
+
+`apex bench` tests 8 configurations (1T + Par 6/8/12/14/16/18/20 MB) on each dataset:
+
+1. Data is loaded into RAM once (mmap). No disk I/O during timing.
+2. GPU warmup run (excluded from timing — initializes CUDA contexts).
+3. Each config: compress best-of-2, decompress best-of-2.
+4. Speed = `original_file_size_MB / time_seconds` (algorithm throughput, not wall-clock).
+5. Round-trip verified: `memcmp(original, decompressed)` for each config.
+
+This is the same methodology used by [lzbench](https://github.com/inikep/lzbench), Squash, and other standard compression benchmark frameworks.
+
+### Two ways to verify speed yourself
+
+**1. `verify.sh` — shows both wall-clock AND algorithm speed:**
+```bash
+./verify.sh data/silesia.tar
+# Output shows:
+#   Wall-clock: 168 MB/s (includes file read + write from disk)
+#   Algorithm:  540 MB/s (data in RAM, no I/O — same as bench)
+```
+
+**2. `time` command — pure wall-clock:**
+```bash
+time ./apex compress data/silesia.tar /tmp/test.apex -mt
+# real 1.2s → 202 MB / 1.2s = 168 MB/s (wall-clock, includes I/O)
+```
+
+Wall-clock is always slower than algorithm speed because it includes reading from disk and writing to disk. Both are valid measurements — they answer different questions.
+
+### Other methodology details
+
 - **Runs**: Best of 2 runs per configuration.
 - **Cooldown**: 10 seconds between datasets (prevents thermal throttling).
 - **Verification**: Every result round-trip verified (compress → decompress → byte-compare).

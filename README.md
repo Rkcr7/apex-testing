@@ -435,12 +435,31 @@ Output: table of all configs with speeds + ratio, then specific recommendations 
 ./apex bench <input> [-v]
 ```
 
-Runs best-of-2 compress and decompress on all configs. Verifies round-trip for each.
+Tests **8 configurations** automatically: 1T + Par 6/8/12/14/16/18/20 MB. For each config:
+1. Warmup run (initializes GPU, excluded from timing)
+2. Compress best-of-2 (data pre-loaded in RAM, measures algorithm speed only)
+3. Decompress best-of-2
+4. Round-trip verify (`memcmp` original vs decompressed)
+
+**Speed measurement**: data is pre-loaded in RAM before timing starts. The timer wraps only the compression/decompression call — no file I/O, no memory allocation. This is the same methodology used by [lzbench](https://github.com/inikep/lzbench) and other standard benchmark frameworks. The speed you see is pure algorithm throughput.
 
 ```bash
 ./apex bench data/silesia.tar                   # Standard benchmark
 ./apex bench data/silesia.tar -v                # With methodology notes
 ```
+
+Example output:
+```
+Config        Compress    Decomp    Ratio  Verify
+------        --------    ------    -----  ------
+1T              226 MB/s    613 MB/s   4.02x  PASS
+Par 6MB         541 MB/s    672 MB/s   4.00x  PASS
+Par 8MB         524 MB/s    654 MB/s   4.01x  PASS
+Par 12MB        413 MB/s    621 MB/s   4.04x  PASS
+...
+```
+
+To see wall-clock speed (including file I/O), use `time ./apex compress ...` or the `verify.sh` script which shows both.
 
 ### `info` — Show file structure
 
