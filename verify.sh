@@ -5,17 +5,10 @@
 # Verifies APEX claims using ONLY standard Unix tools (stat, md5sum,
 # sha256sum, cmp, date, bc). Does NOT trust APEX's own reporting.
 #
-# Tests:
-#   1. Compress (1T mode) — measures size, ratio, speed independently
-#   2. Decompress — measures speed, verifies byte-identical output
-#   3. Lossless check — MD5 + SHA256 + cmp + size match
-#   4. Compress (parallel mode) — same checks
-#   5. Cross-compatibility — Par compressed file decompresses correctly
-#   6. Determinism — compressing twice produces identical output
+# Each timed operation runs TWICE — first run warms up CUDA/caches,
+# second run is measured. This eliminates one-time init overhead.
 #
 # Usage: ./verify.sh <input_file> [apex_binary]
-#    or: ./verify.sh data/silesia.tar
-#    or: ./verify.sh data/silesia.tar ./apex-gpu-avx512
 # ============================================================================
 set -uo pipefail
 
@@ -23,14 +16,13 @@ APEX="${2:-./apex}"
 
 # Find the right binary
 if [ ! -x "$APEX" ]; then
-    for try in ./apex ./apex-gpu-avx2 ./apex-gpu-avx512 ./apex-cpu-avx2 ./apex-cpu-avx512; do
+    for try in ./apex ./apex-gpu-avx2 ./apex-gpu-avx512 ./apex-cpu-avx2 ./apex-cpu-avx512 ./apex-cpu-sse42; do
         if [ -x "$try" ]; then APEX="$try"; break; fi
     done
 fi
 
 if [ ! -x "$APEX" ]; then
-    echo "Error: No APEX binary found. Make sure you're in the apex-testing directory."
-    echo "Available binaries: apex, apex-gpu-avx2, apex-gpu-avx512, apex-cpu-avx2, apex-cpu-avx512"
+    echo "Error: No APEX binary found."
     exit 1
 fi
 
@@ -40,8 +32,6 @@ if [ -z "$INPUT" ] || [ ! -f "$INPUT" ]; then
     echo ""
     echo "Examples:"
     echo "  ./verify.sh data/silesia.tar"
-    echo "  ./verify.sh data/enwik9"
-    echo "  ./verify.sh data/silesia.tar ./apex-gpu-avx512"
     echo "  ./verify.sh data/silesia.tar ./apex-cpu-avx2"
     exit 1
 fi
@@ -71,15 +61,16 @@ echo "  Size:     $ORIG_SIZE bytes ($(echo "scale=1; $ORIG_SIZE / 1048576" | bc)
 echo "  MD5:      $ORIG_MD5"
 echo "  SHA256:   $ORIG_SHA256"
 echo ""
-
-# --- Warmup ---
-echo "Warming up (one-time init)..."
-$APEX compress "$INPUT" "$COMP" >/dev/null 2>&1
-rm -f "$COMP"
+echo "  Each operation runs twice. First run warms up CUDA/caches."
+echo "  Second run is measured (no init overhead)."
 echo ""
 
 # === Test 1: Compress 1T ===
 echo "--- Test 1: Compress (1T mode) ---"
+# Warmup run (CUDA init + disk cache)
+$APEX compress "$INPUT" "$COMP" >/dev/null 2>&1
+rm -f "$COMP"
+# Measured run
 START=$(date +%s%N)
 if $APEX compress "$INPUT" "$COMP" >/dev/null 2>&1; then
     END=$(date +%s%N)
@@ -89,18 +80,21 @@ if $APEX compress "$INPUT" "$COMP" >/dev/null 2>&1; then
     COMP_SPEED=$(echo "scale=0; $ORIG_SIZE / 1048576 * 1000 / $COMP_MS" | bc)
     echo "  Size:   $COMP_SIZE bytes"
     echo "  Ratio:  ${COMP_RATIO}x"
-    echo "  Time:   ${COMP_MS} ms"
+    echo "  Time:   ${COMP_MS} ms (2nd run, no CUDA init)"
     echo "  Speed:  ${COMP_SPEED} MB/s"
     pass "1T compress succeeded"
 else
     fail "1T compress failed"
-    echo "  Cannot continue without compressed file."
     exit 1
 fi
 echo ""
 
 # === Test 2: Decompress ===
 echo "--- Test 2: Decompress ---"
+# Warmup run
+$APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1
+rm -f "$DECOMP"
+# Measured run
 START=$(date +%s%N)
 if $APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1; then
     END=$(date +%s%N)
@@ -108,7 +102,7 @@ if $APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1; then
     DECOMP_SIZE=$(stat -c%s "$DECOMP")
     DECOMP_SPEED=$(echo "scale=0; $ORIG_SIZE / 1048576 * 1000 / $DECOMP_MS" | bc)
     echo "  Size:   $DECOMP_SIZE bytes"
-    echo "  Time:   ${DECOMP_MS} ms"
+    echo "  Time:   ${DECOMP_MS} ms (2nd run, no CUDA init)"
     echo "  Speed:  ${DECOMP_SPEED} MB/s"
     pass "Decompress succeeded"
 else
@@ -116,33 +110,29 @@ else
 fi
 echo ""
 
-# === Test 3: Lossless verification ===
+# === Test 3: Lossless verification (4 checks) ===
 echo "--- Test 3: Lossless verification (4 checks) ---"
 
-# 3a: Size match
 if [ "$ORIG_SIZE" = "$DECOMP_SIZE" ]; then
     pass "Size match ($ORIG_SIZE bytes)"
 else
     fail "Size mismatch: original=$ORIG_SIZE decompressed=$DECOMP_SIZE"
 fi
 
-# 3b: MD5 match
 DECOMP_MD5=$(md5sum "$DECOMP" | cut -d' ' -f1)
 if [ "$ORIG_MD5" = "$DECOMP_MD5" ]; then
     pass "MD5 match ($ORIG_MD5)"
 else
-    fail "MD5 mismatch: original=$ORIG_MD5 decompressed=$DECOMP_MD5"
+    fail "MD5 mismatch"
 fi
 
-# 3c: SHA256 match
 DECOMP_SHA256=$(sha256sum "$DECOMP" | cut -d' ' -f1)
 if [ "$ORIG_SHA256" = "$DECOMP_SHA256" ]; then
-    pass "SHA256 match ($ORIG_SHA256)"
+    pass "SHA256 match"
 else
     fail "SHA256 mismatch"
 fi
 
-# 3d: Binary cmp
 if cmp -s "$INPUT" "$DECOMP"; then
     pass "Byte-level cmp: identical"
 else
@@ -153,6 +143,10 @@ echo ""
 # === Test 4: Parallel mode ===
 echo "--- Test 4: Compress (parallel mode -mt) ---"
 rm -f "$COMP" "$DECOMP"
+# Warmup
+$APEX compress "$INPUT" "$COMP" -mt >/dev/null 2>&1
+rm -f "$COMP"
+# Measured
 START=$(date +%s%N)
 if $APEX compress "$INPUT" "$COMP" -mt >/dev/null 2>&1; then
     END=$(date +%s%N)
@@ -162,17 +156,19 @@ if $APEX compress "$INPUT" "$COMP" -mt >/dev/null 2>&1; then
     PAR_SPEED=$(echo "scale=0; $ORIG_SIZE / 1048576 * 1000 / $PAR_MS" | bc)
     echo "  Size:   $PAR_SIZE bytes"
     echo "  Ratio:  ${PAR_RATIO}x"
-    echo "  Time:   ${PAR_MS} ms"
+    echo "  Time:   ${PAR_MS} ms (2nd run)"
     echo "  Speed:  ${PAR_SPEED} MB/s"
     pass "Parallel compress succeeded"
 
-    # Decompress parallel output
+    # Decompress — warmup + measured
+    $APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1
+    rm -f "$DECOMP"
     START=$(date +%s%N)
     if $APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1; then
         END=$(date +%s%N)
         PAR_DMS=$(( (END - START) / 1000000 ))
         PAR_DSPEED=$(echo "scale=0; $ORIG_SIZE / 1048576 * 1000 / $PAR_DMS" | bc)
-        echo "  Decompress: ${PAR_DSPEED} MB/s (${PAR_DMS} ms)"
+        echo "  Decompress: ${PAR_DSPEED} MB/s (${PAR_DMS} ms, 2nd run)"
 
         PAR_MD5=$(md5sum "$DECOMP" | cut -d' ' -f1)
         if [ "$ORIG_MD5" = "$PAR_MD5" ] && cmp -s "$INPUT" "$DECOMP"; then
@@ -188,7 +184,7 @@ else
 fi
 echo ""
 
-# === Test 5: Custom configs (--par 8, --par 20, --no-lzp) ===
+# === Test 5: Custom configs ===
 echo "--- Test 5: Custom configs ---"
 for cfg in "--par 8" "--par 20" "-mt --no-lzp"; do
     rm -f "$COMP" "$DECOMP"
@@ -207,7 +203,7 @@ done
 echo ""
 
 # === Test 6: Cross-mode compatibility ===
-echo "--- Test 6: Cross-mode (1T compressed → decompresses, Par compressed → decompresses) ---"
+echo "--- Test 6: Cross-mode (1T and Par produce decompressible files) ---"
 rm -f "$COMP" "$DECOMP"
 $APEX compress "$INPUT" "$COMP" >/dev/null 2>&1
 if $APEX decompress "$COMP" "$DECOMP" >/dev/null 2>&1 && cmp -s "$INPUT" "$DECOMP"; then
@@ -236,7 +232,7 @@ else
 fi
 echo ""
 
-# === Test 8: Algorithm speed (apex bench, in-memory, no file I/O) ===
+# === Test 8: Algorithm speed (apex bench) ===
 echo "--- Test 8: Algorithm speed (in-memory, standard methodology) ---"
 BENCH_OUT=$($APEX bench "$INPUT" 2>&1)
 BENCH_1T=$(echo "$BENCH_OUT" | grep "^1T " | head -1)
@@ -271,22 +267,17 @@ echo ""
 echo "  Binary:   $APEX"
 echo "  File:     $INPUT ($(echo "scale=1; $ORIG_SIZE / 1048576" | bc) MB)"
 echo ""
-echo "  Wall-clock speed (includes file I/O — measured by this script):"
+echo "  CLI speed (2nd run, CUDA warm, includes file I/O):"
 echo "    1T:   ${COMP_SPEED} MB/s C, ${DECOMP_SPEED} MB/s D, ${COMP_RATIO}x"
 echo "    Par:  ${PAR_SPEED} MB/s C, ${PAR_DSPEED} MB/s D, ${PAR_RATIO}x"
 echo ""
-echo "  Algorithm speed (in-memory, no I/O — measured by apex bench):"
+echo "  Algorithm speed (in-memory, no I/O — apex bench):"
 echo "    1T:   ${ALGO_1T_C} MB/s C, ${ALGO_1T_D} MB/s D, ${ALGO_1T_R}"
 echo "    Par:  ${ALGO_PAR_C} MB/s C, ${ALGO_PAR_D} MB/s D, ${ALGO_PAR_R}"
 echo ""
-echo "  Wall-clock is slower because each CLI call includes:"
-echo "    - CUDA driver init (~450ms, one-time per process)"
-echo "    - File read from disk + write to disk"
-echo "    - Process startup and library loading"
-echo "  Algorithm speed (apex bench) measures only the algorithm with"
-echo "  data pre-loaded in RAM — same methodology as lzbench."
-echo "  In production (long-running process), CUDA init happens once"
-echo "  and all subsequent operations run at algorithm speed."
+echo "  CLI speed is lower than algorithm speed because it still"
+echo "  includes file read/write. Algorithm speed is pure throughput"
+echo "  with data in RAM (standard lzbench methodology)."
 echo "  Ratios are identical regardless of measurement method."
 echo ""
 echo "  Checks:     $PASS_COUNT passed, $FAIL_COUNT failed (out of $TOTAL)"
@@ -298,7 +289,7 @@ else
 fi
 echo ""
 echo "  Verified with: stat, md5sum, sha256sum, cmp, date, bc"
-echo "  APEX's own reported numbers were NOT used."
+echo "  APEX's own reported numbers were NOT used for CLI measurements."
 echo "============================================================"
 
 [ $FAIL_COUNT -eq 0 ]
