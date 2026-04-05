@@ -38,14 +38,34 @@ echo "=== CUDA ==="
 if command -v nvcc &>/dev/null; then
     nvcc --version 2>/dev/null | grep -E "release|Build"
 else
-    echo "CUDA toolkit not found (nvcc not in PATH)"
-    echo "Checking for CUDA runtime..."
-    ls /usr/local/cuda*/version.txt 2>/dev/null && cat /usr/local/cuda*/version.txt 2>/dev/null || echo "No CUDA found"
+    # nvcc not in PATH — check alternative locations
+    for p in /usr/local/cuda/bin/nvcc /usr/local/cuda-*/bin/nvcc /opt/cuda/bin/nvcc; do
+        if [ -x "$p" ]; then
+            $p --version 2>/dev/null | grep -E "release|Build"
+            break
+        fi
+    done
+    # Also check nvidia-smi for CUDA version
+    if command -v nvidia-smi &>/dev/null; then
+        echo "CUDA Runtime: $(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null) (from nvidia-smi)"
+    else
+        echo "CUDA: not detected"
+    fi
 fi
 echo ""
 
 echo "=== Storage ==="
 df -h . 2>/dev/null | head -2
+# Show disk type (NVMe/SSD/HDD)
+ROOT_DEV=$(df . 2>/dev/null | tail -1 | awk '{print $1}' | sed 's/[0-9]*$//' | sed 's|/dev/||' | sed 's/p$//')
+if [ -n "$ROOT_DEV" ] && [ -e "/sys/block/$ROOT_DEV/queue/rotational" ]; then
+    ROTA=$(cat /sys/block/$ROOT_DEV/queue/rotational 2>/dev/null)
+    if [ "$ROTA" = "0" ]; then
+        if echo "$ROOT_DEV" | grep -q "nvme"; then echo "Type: NVMe SSD"; else echo "Type: SSD"; fi
+    else
+        echo "Type: HDD"
+    fi
+fi
 echo ""
 
 echo "=== OS ==="
