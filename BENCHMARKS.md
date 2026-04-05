@@ -253,7 +253,8 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 | LZMA 25.01 | -5 | 1 | 4.35x | 3 MB/s | 110 MB/s |
 
 **Methodology notes:**
-- **APEX**: Par 6MB uses 14 CPU worker threads + GPU. 1T uses 1 CPU thread + GPU.
+- **APEX Par 6MB**: 14 parallel worker threads + GPU. Each worker processes one block at a time.
+- **APEX 1T**: Despite the name "1T" (one worker in the pipeline), this mode actually uses **2 CPU threads** (main thread + async encoding worker) plus 2 CUDA driver threads when GPU is available. It is NOT purely single-threaded. "1T" means one pipeline worker (no block-level parallelism), not one OS thread.
 - **zstd**: Multi-threaded tested with zstd CLI v1.5.5 at levels -9, -12, -15 with -T10/-T14 threads and `--long=27`. Single-threaded from lzbench 2.2.1. These represent zstd's best configs across speed-ratio range.
 - **bsc**: Native CLI v3.3.12 with OpenMP (uses all CPU cores). Tested default (-b25) and best-ratio (-e2). Full comparison in [libbsc section below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
 - **bzip2, bzip3, LZMA**: Single-threaded via lzbench 2.2.1 at their best ratio settings.
