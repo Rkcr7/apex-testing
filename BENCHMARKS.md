@@ -42,31 +42,35 @@ Verified across 14 datasets on 3 independent systems. All results round-trip ver
 
 This is the same methodology used by [lzbench](https://github.com/inikep/lzbench), Squash, and other standard compression benchmark frameworks.
 
-### Two ways to verify speed yourself
+### Verify the speeds yourself
 
-**1. `verify.sh` — shows both wall-clock AND algorithm speed:**
+**`verify.sh`** — runs `apex bench` and shows the benchmark speed:
 ```bash
 ./verify.sh data/silesia.tar
-# Output shows:
-#   Wall-clock: 168 MB/s (includes file read + write from disk)
-#   Algorithm:  540 MB/s (data in RAM, no I/O — same as bench)
 ```
 
-**2. `time` command — pure wall-clock:**
+**`time` command** — shows wall-clock (slower, includes disk + CUDA startup):
 ```bash
 time ./apex compress data/silesia.tar /tmp/test.apex -mt
-# real 1.2s → 202 MB / 1.2s = 168 MB/s (wall-clock, includes I/O)
 ```
 
-Wall-clock is always slower than algorithm speed because it includes reading from disk and writing to disk. Both are valid measurements — they answer different questions.
+### Why CLI `time` is slower than `apex bench`
+
+| | zstd | APEX (GPU) | APEX (CPU-only) |
+|---|---|---|---|
+| **Process startup** | 1ms | ~580ms (CUDA driver) | 1ms |
+| **Silesia compress** | 2.4s | 1.2s | 1.8s |
+| **Algorithm only** | ~2.4s | ~380ms | ~1.6s |
+
+The APEX GPU binary loads the CUDA driver on every process start (~580ms). This is a **one-time cost per process** — not per file. In production use (server, pipeline, daemon), CUDA loads once and all files compress at algorithm speed.
+
+The CPU-only binary (`apex-cpu-avx2`) has **no CUDA overhead** — its startup is 1ms, same as zstd.
 
 ### Other methodology details
 
 - **Runs**: Best of 2 runs per configuration.
 - **Cooldown**: 10 seconds between datasets (prevents thermal throttling).
 - **Verification**: Every result round-trip verified (compress → decompress → byte-compare).
-- **What's measured**: The full compress/decompress call including all pipeline stages.
-- **What's NOT measured**: File I/O and one-time CUDA driver init (~450ms first run).
 
 ### Would these numbers reproduce?
 

@@ -772,7 +772,7 @@ Our test system: **AMD Ryzen 9 8940HX (16C/32T) + NVIDIA RTX 5070 Laptop (8GB) +
 | Problem | Cause | Fix |
 |---------|-------|-----|
 | `GPU: Disabled (CPU-only mode)` | CUDA not found | Install CUDA toolkit, ensure `nvcc` is in PATH |
-| First run is slow (~450ms extra) | CUDA driver init | Normal. Subsequent runs are full speed. |
+| First run is slow (~580ms extra) | CUDA driver loading | One-time per process. Use `apex bench` for accurate speed. CPU-only binary has no delay. |
 | `Killed` or no output after starting | Not enough RAM (see below) | Use compress+decompress separately |
 | GPU memory errors | VRAM < 8 GB | Use `--par 6` for smaller GPU transform blocks |
 | `GLIBC_2.38 not found` | Old Linux | Need Ubuntu 24.04+ or Fedora 39+. Or glibc 2.38+. |
