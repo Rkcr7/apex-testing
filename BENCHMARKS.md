@@ -88,6 +88,8 @@ The CPU-only binary (`apex-cpu-avx2`) has **no CUDA overhead** — its startup i
 
 ## Results by Dataset
 
+All results in this section are from our **development machine** (ASUS TUF Gaming A16, Ryzen 9 8940HX + RTX 5070 Laptop). For results on other hardware, see [RTX 4090](#independent-validation--vastai-rtx-4090) and [RTX 5090](#independent-validation--vastai-rtx-5090--dual-epyc-7742) sections below.
+
 **Legend**: C = Compress (MB/s), D = Decompress (MB/s), R = Ratio, RT = Round-trip verified
 
 ---
