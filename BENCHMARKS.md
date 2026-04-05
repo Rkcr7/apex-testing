@@ -58,7 +58,7 @@ time ./apex compress data/silesia.tar /tmp/test.apex -mt
 
 | | zstd | APEX (GPU) | APEX (CPU-only) |
 |---|---|---|---|
-| **Process startup** | Near-zero | CUDA driver loading | Near-zero |
+| **Process startup** | Near-zero | CUDA driver loading (one time)| Near-zero |
 | **Silesia compress** | 2.4s | 1.2s | 1.8s |
 | **Algorithm only** | ~2.4s | ~380ms | ~1.6s |
 
