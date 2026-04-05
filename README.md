@@ -316,7 +316,7 @@ cmp myfile.tar restored.tar && echo "PASS: Files are identical"
 ```bash
 git clone https://github.com/Rkcr7/apex-testing.git
 cd apex-testing
-chmod +x apex-cpu-avx2 apex-cpu-avx512 verify.sh download_datasets.sh sysinfo.sh
+chmod +x apex-cpu-avx2 apex-cpu-avx512 apex-cpu-sse42 verify.sh download_datasets.sh sysinfo.sh
 
 ./sysinfo.sh                                  # Check system
 ./download_datasets.sh                        # Download datasets
