@@ -175,6 +175,21 @@ All benchmarks were run plugged in with Performance thermal profile enabled. Bat
 
 Your results will differ based on your hardware. That's the point — we want to see how APEX performs across different systems.
 
+### What We Test On
+
+APEX is benchmarked on **14 real-world datasets** across multiple domains — not just standard compression benchmarks.
+
+| Category | Datasets | Why it matters |
+|----------|---------|---------------|
+| **Standard benchmarks** | Silesia (202MB), enwik8 (96MB), enwik9 (954MB) | Industry-standard. Every compressor publishes these. Directly comparable. |
+| **Source code** | Linux Kernel (1.5GB), LLVM (2.4GB), Chromium (4.6GB) | Real production codebases. Tests scaling on large repetitive data. |
+| **Structured data** | GH Events JSON (480MB), Large JSON (1.1GB), Wiki SQL, CSV | Real API logs, database dumps, tabular data. Tests on highly repetitive patterns. |
+| **Genomics** | Human Genome GRCh38 (3.0GB) | Real DNA reference genome. BWT is native to this domain. |
+| **Incompressible** | Firefox (79MB), Taxi Parquet (48MB) | Already-compressed binaries. APEX correctly detects and stores RAW at memcpy speed — proves content detection works. |
+| **Pure text** | Pizza&Chili English (2.1GB) | Standard academic BWT benchmark. Pure English, no markup. |
+
+All datasets are publicly downloadable. No synthetic or generated data. The included `download_datasets.sh` fetches the same files we used — you test on exactly what we tested on.
+
 ---
 
 ## 1. System Requirements
