@@ -229,22 +229,35 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 
 ## vs Competition (Silesia, same hardware)
 
-| Compressor | Threads | Ratio | Compress | Decompress |
-|-----------|---------|-------|----------|------------|
-| **APEX Par 6MB** | **14 + GPU** | **4.00x** | **541 MB/s** | **672 MB/s** |
-| **APEX 1T** | **1 + GPU** | **4.02x** | **226 MB/s** | **578 MB/s** |
-| zstd -5 | 1 | 3.36x | 125 MB/s | 1,197 MB/s |
-| zstd -22 | 1 | 4.05x | 2 MB/s | 1,197 MB/s |
-| bzip2 -9 | 1 | 3.88x | 13 MB/s | 46 MB/s |
-| bzip3 | 1 | 4.48x | 12 MB/s | 15 MB/s |
-| LZMA -9 | 1 | 4.35x | 3 MB/s | 110 MB/s |
+### Multi-threaded (all compressors using their best multi-threaded configs)
+
+| Compressor | Config | Threads | Ratio | Compress | Decompress |
+|-----------|--------|---------|-------|----------|------------|
+| **APEX** | **Par 6MB** | **14 + GPU** | **4.00x** | **541 MB/s** | **672 MB/s** |
+| **APEX** | **1T** | **1 + GPU** | **4.02x** | **226 MB/s** | **578 MB/s** |
+| zstd 1.5.5 | -9 -T14 | 14 | 3.56x | 337 MB/s | 2,021 MB/s |
+| zstd 1.5.5 | -12 -T14 | 14 | 3.63x | 126 MB/s | 2,021 MB/s |
+| zstd 1.5.5 | -15 -T10 --long | 10 | 3.72x | 29 MB/s | 991 MB/s |
+| bsc 3.3.12 | default (-b25) | all (OpenMP) | 4.42x | 58 MB/s | 309 MB/s |
+| bsc 3.3.12 | -e2 (best ratio) | all (OpenMP) | **4.47x** | 56 MB/s | 228 MB/s |
+
+### Single-threaded (from lzbench 2.2.1)
+
+| Compressor | Config | Threads | Ratio | Compress | Decompress |
+|-----------|--------|---------|-------|----------|------------|
+| **APEX** | **1T** | **1 + GPU** | **4.02x** | **226 MB/s** | **578 MB/s** |
+| zstd 1.5.5 | -5 | 1 | 3.36x | 125 MB/s | 1,197 MB/s |
+| zstd 1.5.5 | -22 | 1 | 4.05x | 2 MB/s | 1,197 MB/s |
+| bzip2 | -9 | 1 | 3.88x | 13 MB/s | 46 MB/s |
+| bzip3 1.5.2 | -5 | 1 | 4.48x | 12 MB/s | 15 MB/s |
+| LZMA 25.01 | -5 | 1 | 4.35x | 3 MB/s | 110 MB/s |
 
 **Methodology notes:**
-- **APEX Par 6MB**: 14 CPU worker threads + GPU. APEX 1T: 1 CPU thread + GPU.
-- **zstd**: Tested at -5 (fast) and -22 (max ratio) via lzbench 2.2.1 (single-threaded). Multi-threaded zstd (`-T14`) would be faster on compress.
-- **bzip2, bzip3, LZMA**: Tested via lzbench 2.2.1 (single-threaded) at their best ratio settings (-9 for bzip2/LZMA, default for bzip3).
-- **libbsc**: Tested separately with its native CLI. bsc uses OpenMP internally (all cores). Tested with default (-b25) and best-ratio configs (-b100, -e2). See [full libbsc comparison below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
-- zstd has faster decompression (LZ77 memcpy-based decode). APEX wins on ratio + compress speed.
+- **APEX**: Par 6MB uses 14 CPU worker threads + GPU. 1T uses 1 CPU thread + GPU.
+- **zstd**: Multi-threaded tested with zstd CLI v1.5.5 at levels -9, -12, -15 with -T10/-T14 threads and `--long=27`. Single-threaded from lzbench 2.2.1. These represent zstd's best configs across speed-ratio range.
+- **bsc**: Native CLI v3.3.12 with OpenMP (uses all CPU cores). Tested default (-b25) and best-ratio (-e2). Full comparison in [libbsc section below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
+- **bzip2, bzip3, LZMA**: Single-threaded via lzbench 2.2.1 at their best ratio settings.
+- **Decompress**: zstd has significantly faster decompression (LZ77 memcpy-based decode). This is a fundamental algorithm difference, not a threading advantage.
 
 ---
 
