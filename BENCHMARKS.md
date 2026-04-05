@@ -62,7 +62,7 @@ time ./apex compress data/silesia.tar /tmp/test.apex -mt
 | **Silesia compress** | 2.4s | 1.2s | 1.8s |
 | **Algorithm only** | ~2.4s | ~380ms | ~1.6s |
 
-The APEX GPU binary loads the CUDA driver on every process start. This is a **one-time cost per process** — not per file. In production use (server, pipeline, daemon), CUDA loads once and all subsequent files compress at full algorithm speed.
+The APEX GPU binary loads the CUDA driver on every process start (typically a few hundred ms, varies by GPU and driver). This is a **one-time cost per process** — not per file. In production use (server, pipeline, daemon), CUDA loads once and all subsequent files compress at full algorithm speed.
 
 The CPU-only binary (`apex-cpu-avx2`) has **no CUDA overhead** — its startup is 1ms, same as zstd.
 
