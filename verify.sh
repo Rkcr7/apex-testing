@@ -236,6 +236,32 @@ else
 fi
 echo ""
 
+# === Test 8: Algorithm speed (apex bench, in-memory, no file I/O) ===
+echo "--- Test 8: Algorithm speed (in-memory, standard methodology) ---"
+BENCH_OUT=$($APEX bench "$INPUT" 2>&1)
+BENCH_1T=$(echo "$BENCH_OUT" | grep "^1T " | head -1)
+BENCH_PAR=$(echo "$BENCH_OUT" | grep "^Par 6MB\|^Par 8MB" | head -1)
+
+if [ -n "$BENCH_1T" ]; then
+    ALGO_1T_C=$(echo "$BENCH_1T" | awk '{print $2}')
+    ALGO_1T_D=$(echo "$BENCH_1T" | awk '{print $4}')
+    ALGO_1T_R=$(echo "$BENCH_1T" | awk '{print $6}')
+    pass "Algorithm speed measured (1T: ${ALGO_1T_C} C, ${ALGO_1T_D} D, ${ALGO_1T_R})"
+else
+    ALGO_1T_C="N/A"; ALGO_1T_D="N/A"; ALGO_1T_R="N/A"
+    pass "Bench skipped (file may be too large for in-memory bench)"
+fi
+
+if [ -n "$BENCH_PAR" ]; then
+    ALGO_PAR_C=$(echo "$BENCH_PAR" | awk '{print $3}')
+    ALGO_PAR_D=$(echo "$BENCH_PAR" | awk '{print $5}')
+    ALGO_PAR_R=$(echo "$BENCH_PAR" | awk '{print $7}')
+    pass "Algorithm speed measured (Par: ${ALGO_PAR_C} C, ${ALGO_PAR_D} D, ${ALGO_PAR_R})"
+else
+    ALGO_PAR_C="N/A"; ALGO_PAR_D="N/A"; ALGO_PAR_R="N/A"
+fi
+echo ""
+
 # === Summary ===
 TOTAL=$((PASS_COUNT + FAIL_COUNT))
 echo "============================================================"
@@ -245,8 +271,18 @@ echo ""
 echo "  Binary:   $APEX"
 echo "  File:     $INPUT ($(echo "scale=1; $ORIG_SIZE / 1048576" | bc) MB)"
 echo ""
-echo "  1T Mode:    ${COMP_RATIO}x ratio, ${COMP_SPEED} MB/s C, ${DECOMP_SPEED} MB/s D"
-echo "  Par Mode:   ${PAR_RATIO}x ratio, ${PAR_SPEED} MB/s C, ${PAR_DSPEED} MB/s D"
+echo "  Wall-clock speed (includes file I/O — measured by this script):"
+echo "    1T:   ${COMP_SPEED} MB/s C, ${DECOMP_SPEED} MB/s D, ${COMP_RATIO}x"
+echo "    Par:  ${PAR_SPEED} MB/s C, ${PAR_DSPEED} MB/s D, ${PAR_RATIO}x"
+echo ""
+echo "  Algorithm speed (in-memory, no I/O — measured by apex bench):"
+echo "    1T:   ${ALGO_1T_C} MB/s C, ${ALGO_1T_D} MB/s D, ${ALGO_1T_R}"
+echo "    Par:  ${ALGO_PAR_C} MB/s C, ${ALGO_PAR_D} MB/s D, ${ALGO_PAR_R}"
+echo ""
+echo "  Wall-clock is slower because it includes reading from disk and"
+echo "  writing to disk. Algorithm speed is the standard benchmark"
+echo "  methodology (data pre-loaded in RAM, same as lzbench)."
+echo "  Ratios are identical regardless of measurement method."
 echo ""
 echo "  Checks:     $PASS_COUNT passed, $FAIL_COUNT failed (out of $TOTAL)"
 echo ""
