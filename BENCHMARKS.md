@@ -229,19 +229,22 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 
 ## vs Competition (Silesia, same hardware)
 
-| Compressor | Ratio | Compress | Decompress |
-|-----------|-------|----------|------------|
-| **APEX Par 6MB** | **4.00x** | **541 MB/s** | **672 MB/s** |
-| **APEX 1T** | **4.02x** | **226 MB/s** | **578 MB/s** |
-| zstd -5 | 3.36x | 125 MB/s | 1,197 MB/s |
-| zstd -22 | 4.05x | 2 MB/s | 1,197 MB/s |
-| bzip2 -9 | 3.88x | 13 MB/s | 46 MB/s |
-| bzip3 | 4.48x | 12 MB/s | 15 MB/s |
-| LZMA -9 | 4.35x | 3 MB/s | 110 MB/s |
+| Compressor | Threads | Ratio | Compress | Decompress |
+|-----------|---------|-------|----------|------------|
+| **APEX Par 6MB** | **14 + GPU** | **4.00x** | **541 MB/s** | **672 MB/s** |
+| **APEX 1T** | **1 + GPU** | **4.02x** | **226 MB/s** | **578 MB/s** |
+| zstd -5 | 1 | 3.36x | 125 MB/s | 1,197 MB/s |
+| zstd -22 | 1 | 4.05x | 2 MB/s | 1,197 MB/s |
+| bzip2 -9 | 1 | 3.88x | 13 MB/s | 46 MB/s |
+| bzip3 | 1 | 4.48x | 12 MB/s | 15 MB/s |
+| LZMA -9 | 1 | 4.35x | 3 MB/s | 110 MB/s |
 
-At 4.0x ratio: **APEX compresses 4-266x faster than everything else.**
-
-Note: zstd has faster decompression (different algorithm design). APEX wins on compress speed + ratio.
+**Methodology notes:**
+- **APEX Par 6MB**: 14 CPU worker threads + GPU. APEX 1T: 1 CPU thread + GPU.
+- **zstd**: Tested at -5 (fast) and -22 (max ratio) via lzbench 2.2.1 (single-threaded). Multi-threaded zstd (`-T14`) would be faster on compress.
+- **bzip2, bzip3, LZMA**: Tested via lzbench 2.2.1 (single-threaded) at their best ratio settings (-9 for bzip2/LZMA, default for bzip3).
+- **libbsc**: Tested separately with its native CLI. bsc uses OpenMP internally (all cores). Tested with default (-b25) and best-ratio configs (-b100, -e2). See [full libbsc comparison below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
+- zstd has faster decompression (LZ77 memcpy-based decode). APEX wins on ratio + compress speed.
 
 ---
 
@@ -650,6 +653,11 @@ Zen 4 has ~15-20% higher IPC than Zen 2 at the same clock speed. Combined with t
 Both APEX and [libbsc](https://github.com/IlyaGrebnov/libbsc) (bsc 3.3.12) use BWT-based compression with the same underlying libraries — [libcubwt](https://github.com/IlyaGrebnov/libcubwt) and [libsais](https://github.com/IlyaGrebnov/libsais), both by [Ilya Grebnov](https://github.com/IlyaGrebnov). This makes it a uniquely fair comparison: same BWT engine, different overall approach.
 
 Tested on our development machine (Ryzen 9 8940HX + RTX 5070 Laptop). Wall-clock timing including file I/O. Best of 2 runs, round-trip verified.
+
+**Threading notes:**
+- APEX Par 6MB uses 14 CPU workers + GPU.
+- bsc uses OpenMP internally — it automatically uses all available CPU cores for BWT. On our 16-core system, bsc uses up to 16 threads via OpenMP.
+- Both compressors are multi-threaded. The speed difference comes from GPU acceleration (APEX) vs CPU-only parallel BWT (bsc).
 
 ### Results
 
