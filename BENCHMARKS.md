@@ -1023,6 +1023,56 @@ On Genome: APEX 1T actually beats bsc on ratio (4.48x vs 4.46x) while being 3.5x
 
 > **Note:** The bsc comparison above tests bsc in **CPU-only BWT mode** (-m0). bsc also has GPU modes using Sort Transform (-m3 to -m8 with -G) which achieve comparable or faster compress speeds on some datasets. A comprehensive GPU vs GPU comparison (both using same libcubwt library) is available in the [main repo analysis](https://github.com/Rkcr7/apex/blob/main/docs/BSC_COMPARISON_ANALYSIS.md).
 
+### Ratio-Matched Comparison (GPU vs GPU)
+
+The tables above include bsc configs tuned for high ratio (larger blocks, best entropy) alongside speed-tuned configs. A fairer speed comparison tunes bsc as close to APEX's actual compression ratio as possible, then compares speeds. GPU modes on both sides.
+
+**Finding the nearest bsc GPU config to APEX's ratio per dataset:**
+
+| Dataset | APEX ratio | Nearest bsc GPU config | bsc ratio | Gap |
+|---------|-----------|----------------------|-----------|-----|
+| Silesia | 4.00x | `-b6 -m3 -e1 -G` (ST3) | **4.02x** | +0.5% |
+| enwik9 | 4.36x | `-b6 -m3 -e1 -G` (ST3) | **3.94x** | −9.7% (APEX wins ratio) |
+| enwik9 | 4.36x | `-b6 -m5 -e0 -G` (ST5 fast) | **4.49x** | +3.0% (nearest above) |
+| Spark | 28.25x | `-b6 -m5 -e0 -G` (ST5 fast) | **29.66x** | +5.0% |
+
+**Silesia — essentially identical ratio (4.00x vs 4.02x):**
+
+| Compressor | Config | Compress | Decompress | Ratio |
+|-----------|--------|----------|------------|-------|
+| **APEX** | Par 6MB [GPU full BWT] | **551 MB/s** | **704 MB/s** | 4.00x |
+| bsc | -b6 -m3 -e1 -G [GPU ST3] | 398 MB/s | 237 MB/s | 4.02x |
+
+At matched ratio: **APEX +38% compress, +3.0x decompress.**
+
+**enwik9 — bsc ST3 GPU gets *worse* ratio than APEX:**
+
+bsc's lightest GPU Sort Transform mode (ST3) achieves only 3.94x on enwik9 — 9% lower than APEX's 4.36x. APEX full BWT captures more structure than bsc's fastest GPU approximation on this dataset. The nearest bsc config *above* APEX's ratio is ST5 fast (4.49x):
+
+| Compressor | Config | Compress | Decompress | Ratio |
+|-----------|--------|----------|------------|-------|
+| **APEX** | Par 8MB [GPU full BWT] | 658 MB/s | **794 MB/s** | 4.36x |
+| bsc | -b6 -m3 -e1 -G [GPU ST3] | 561 MB/s | 358 MB/s | 3.94x ← worse ratio |
+| bsc | -b6 -m5 -e0 -G [GPU ST5 fast] | **774 MB/s** | 213 MB/s | 4.49x ← nearest above |
+
+At ST5 fast (3% higher ratio): bsc +18% compress, **APEX +3.7x decompress.**
+
+**Spark — nearest is ST5 fast at 5% higher ratio:**
+
+| Compressor | Config | Compress | Decompress | Ratio |
+|-----------|--------|----------|------------|-------|
+| **APEX** | Par 14MB [GPU full BWT] | 1,364 MB/s | **2,036 MB/s** | 28.25x |
+| bsc | -b6 -m5 -e0 -G [GPU ST5 fast] | **1,450 MB/s** | 678 MB/s | 29.66x |
+
+At ST5 fast (5% higher ratio): bsc +6% compress, **APEX +3.0x decompress.**
+
+**Ratio-matched conclusions:**
+- **Silesia** (matched ratio): APEX wins both compress and decompress
+- **enwik9** (3% ratio gap): bsc edges compress (+18%), APEX wins decompress (+3.7x). Note: no bsc GPU config exists between ST3 (3.94x, too low) and ST5 fast (4.49x, too high) — APEX's ratio sits in a gap bsc's GPU modes can't match exactly
+- **Spark** (5% ratio gap): bsc edges compress (+6%), APEX wins decompress (+3.0x)
+
+The decompress advantage is consistent at 3–4x regardless of which ratio-matched config is used.
+
 ---
 
 ## CPU-Only Mode (No GPU Required)
