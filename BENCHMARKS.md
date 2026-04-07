@@ -82,7 +82,7 @@ The CPU-only binary (`apex-cpu-avx2`) has **no CUDA overhead** — its startup i
 
 ### Disclosures
 
-1. Parallel mode uses 14 CPU threads + 1 GPU. The 1T mode is single-thread + GPU.
+1. Parallel mode uses 14 CPU threads + 1 GPU. The 1T mode uses 1 pipeline worker + GPU (actually 2 CPU threads + CUDA driver threads — not purely single-threaded).
 2. Decompress requires GPU for full speed. CPU-only decompress is ~200-250 MB/s.
 3. Thermal throttling on laptops can reduce speeds by 10-20% under sustained load.
 4. The CLI reads the entire input file into RAM before processing. `bench` needs ~3x file size in RAM, `compress`/`decompress` need ~1.5x. For files over 4 GB on 16 GB RAM systems, use `compress`/`decompress` with `--par 6` instead of `bench`. The compression algorithm itself is block-based (6-20 MB blocks) and does not require the full file in memory — this is a CLI convenience, not an algorithm limitation.
@@ -105,10 +105,10 @@ Source: [sun.aei.polsl.pl](https://sun.aei.polsl.pl/~sdeor/index.php?page=silesi
 
 | Config | Compress | Decompress | Ratio | RT |
 |--------|----------|------------|-------|----|
-| **1T** | 226 MB/s | **578 MB/s** | **4.02x** | PASS |
-| **Par 6MB** | **541 MB/s** | **672 MB/s** | 4.00x | PASS |
-| Par 8MB | 524 MB/s | 654 MB/s | 4.01x | PASS |
-| **Par 20MB** | 334 MB/s | 465 MB/s | **4.08x** | PASS |
+| **1T** | 212 MB/s | **594 MB/s** | **4.02x** | PASS |
+| **Par 6MB** | **551 MB/s** | **704 MB/s** | 4.00x | PASS |
+| Par 8MB | 539 MB/s | 699 MB/s | 4.01x | PASS |
+| **Par 20MB** | 343 MB/s | 360 MB/s | **4.08x** | PASS |
 
 ### 2. enwik8 (96 MB, English Wikipedia XML)
 
@@ -131,10 +131,10 @@ Source: [mattmahoney.net](http://mattmahoney.net/dc/textdata.html)
 
 | Config | Compress | Decompress | Ratio | RT |
 |--------|----------|------------|-------|----|
-| **1T** | 241 MB/s | **642 MB/s** | **5.04x** | PASS |
-| Par 6MB | 567 MB/s | 690 MB/s | 4.28x | PASS |
-| **Par 8MB** | **634 MB/s** | **697 MB/s** | 4.36x | PASS |
-| **Par 20MB** | 499 MB/s | 591 MB/s | **4.60x** | PASS |
+| **1T** | 248 MB/s | **755 MB/s** | **5.04x** | PASS |
+| Par 6MB | 590 MB/s | 791 MB/s | 4.28x | PASS |
+| **Par 8MB** | **658 MB/s** | **794 MB/s** | 4.36x | PASS |
+| **Par 20MB** | 510 MB/s | 652 MB/s | **4.60x** | PASS |
 
 ### 4. Linux Kernel (1,474 MB, source code tarball)
 
@@ -144,13 +144,13 @@ Source: [kernel.org](https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar
 
 | Config | Compress | Decompress | Ratio | RT |
 |--------|----------|------------|-------|----|
-| **1T** | 329 MB/s | **1,201 MB/s** | **9.64x** | PASS |
-| Par 6MB | 678 MB/s | 915 MB/s | 8.94x | PASS |
-| Par 8MB | 691 MB/s | 936 MB/s | 9.08x | PASS |
-| **Par 12MB** | **817 MB/s** | 999 MB/s | 9.26x | PASS |
-| Par 14MB | 763 MB/s | **1,025 MB/s** | 9.30x | PASS |
-| Par 16MB | 728 MB/s | 956 MB/s | 9.38x | PASS |
-| Par 20MB | 677 MB/s | 862 MB/s | **9.44x** | PASS |
+| **1T** | 341 MB/s | **1,268 MB/s** | **9.64x** | PASS |
+| Par 6MB | 711 MB/s | 1,129 MB/s | 8.94x | PASS |
+| Par 8MB | 714 MB/s | 1,161 MB/s | 9.08x | PASS |
+| **Par 12MB** | **802 MB/s** | 1,059 MB/s | 9.26x | PASS |
+| Par 14MB | 744 MB/s | **1,034 MB/s** | 9.30x | PASS |
+| Par 16MB | 738 MB/s | 1,013 MB/s | 9.38x | PASS |
+| Par 20MB | 703 MB/s | 1,028 MB/s | **9.44x** | PASS |
 
 ### 5. GH Events JSON (480 MB, highly repetitive JSON)
 
@@ -259,10 +259,10 @@ Source: [ftp.ncbi.nlm.nih.gov](https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/
 
 | Config | Compress | Decompress | Ratio | RT |
 |--------|----------|------------|-------|----|
-| **1T** | 213 MB/s | **741 MB/s** | **4.48x** | PASS |
-| **Par 6MB** | 481 MB/s | **740 MB/s** | 4.35x | PASS |
-| **Par 8MB** | **479 MB/s** | **757 MB/s** | 4.36x | PASS |
-| **Par 20MB** | 466 MB/s | 702 MB/s | **4.40x** | PASS |
+| **1T** | 219 MB/s | **801 MB/s** | **4.48x** | PASS |
+| **Par 6MB** | **493 MB/s** | **887 MB/s** | 4.35x | PASS |
+| **Par 8MB** | 490 MB/s | 815 MB/s | 4.36x | PASS |
+| **Par 20MB** | 480 MB/s | 715 MB/s | **4.40x** | PASS |
 
 ---
 
@@ -282,16 +282,16 @@ Source: [Loghub](https://github.com/logpai/loghub)
 
 | Config | Compress | Decompress | Ratio | RT |
 |--------|----------|------------|-------|----|
-| **1T** | 417 MB/s | **1,780 MB/s** | **29.16x** | PASS |
-| Par 6MB | 710 MB/s | 1,231 MB/s | 27.44x | PASS |
-| Par 8MB | 591 MB/s | 1,252 MB/s | 27.75x | PASS |
-| Par 12MB | 1,246 MB/s | 1,497 MB/s | 28.13x | PASS |
-| Par 14MB | 1,255 MB/s | 1,537 MB/s | 28.25x | PASS |
-| **Par 16MB** | **1,257 MB/s** | **1,545 MB/s** | **28.35x** | PASS |
-| Par 18MB | 1,180 MB/s | 1,545 MB/s | 28.42x | PASS |
-| Par 20MB | 1,167 MB/s | 1,543 MB/s | 28.43x | PASS |
+| **1T** | 430 MB/s | **1,852 MB/s** | **29.16x** | PASS |
+| Par 6MB | 741 MB/s | 1,844 MB/s | 27.44x | PASS |
+| Par 8MB | 618 MB/s | 1,728 MB/s | 27.75x | PASS |
+| Par 12MB | 1,254 MB/s | **2,069 MB/s** | 28.13x | PASS |
+| **Par 14MB** | **1,364 MB/s** | **2,036 MB/s** | 28.25x | PASS |
+| Par 16MB | 1,302 MB/s | 1,964 MB/s | **28.35x** | PASS |
+| Par 18MB | 1,260 MB/s | 1,991 MB/s | 28.42x | PASS |
+| Par 20MB | 1,205 MB/s | 1,960 MB/s | 28.43x | PASS |
 
-Best ratio: **29.16x** at 417/1,780 MB/s (1T) — 2.8 GB → 96 MB. Best speed: **1,257 MB/s** at 28.35x (Par 16MB).
+Best ratio: **29.16x** at 430/1,852 MB/s (1T) — 2.8 GB → 96 MB. Best speed: **1,364 MB/s** at 28.25x (Par 14MB). Best decompress: **2,069 MB/s** at 28.13x (Par 12MB).
 
 ---
 
@@ -409,15 +409,17 @@ Source: [NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
 | Compressor | Config | Threads | Ratio | Compress | Decompress |
 |-----------|--------|---------|-------|----------|------------|
-| **APEX** | **Par 6MB** | **14 + GPU** | **4.00x** | **541 MB/s** | **672 MB/s** |
-| **APEX** | **1T** | **1 + GPU** | **4.02x** | **226 MB/s** | **578 MB/s** |
+| **APEX** | **Par 6MB** | **14 + GPU** | **4.00x** | **551 MB/s** | **704 MB/s** |
+| **APEX** | **1T** | **1 + GPU** | **4.02x** | **212 MB/s** | **594 MB/s** |
 | zstd 1.5.5 | -9 -T14 | 14 | 3.56x | 337 MB/s | 2,021 MB/s |
 | zstd 1.5.5 | -12 -T14 | 14 | 3.63x | 126 MB/s | 2,021 MB/s |
 | zstd 1.5.5 | -15 -T10 --long | 10 | 3.72x | 29 MB/s | 991 MB/s |
-| bsc 3.3.12 | default (-b25) | all (OpenMP) | 4.42x | 58 MB/s | 309 MB/s |
-| bsc 3.3.12 | -e2 (best ratio) | all (OpenMP) | **4.47x** | 56 MB/s | 228 MB/s |
+| bsc 3.3.12 | default (-b25, CPU BWT) | all (OpenMP) | 4.42x | 58 MB/s | 309 MB/s |
+| bsc 3.3.12 | -e2 (best ratio, CPU BWT) | all (OpenMP) | **4.47x** | 56 MB/s | 228 MB/s |
 
-### Single-threaded (from lzbench 2.2.1)
+### Single-worker / Low-thread (from lzbench 2.2.1)
+
+> Note: APEX 1T uses 1 pipeline worker + GPU (not purely single-threaded). Other tools below are CPU-only single-threaded.
 
 | Compressor | Config | Threads | Ratio | Compress | Decompress |
 |-----------|--------|---------|-------|----------|------------|
@@ -432,7 +434,8 @@ Source: [NYC TLC](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 - **APEX Par 6MB**: 14 parallel worker threads + GPU. Each worker processes one block at a time.
 - **APEX 1T**: Despite the name "1T" (one worker in the pipeline), this mode actually uses **2 CPU threads** (main thread + async encoding worker) plus 2 CUDA driver threads when GPU is available. It is NOT purely single-threaded. "1T" means one pipeline worker (no block-level parallelism), not one OS thread.
 - **zstd**: Multi-threaded tested with zstd CLI v1.5.5 at levels -9, -12, -15 with -T10/-T14 threads and `--long=27`. Single-threaded from lzbench 2.2.1. These represent zstd's best configs across speed-ratio range.
-- **bsc**: Native CLI v3.3.12 with OpenMP (uses all CPU cores). Tested default (-b25) and best-ratio (-e2). Full comparison in [libbsc section below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
+- **bsc**: Native CLI v3.3.12 with OpenMP (uses all CPU cores), CPU BWT mode. bsc also has GPU modes (-G) using Sort Transform which achieve comparable or faster compress on some datasets. Tested default (-b25) and best-ratio (-e2). Full comparison in [libbsc section below](#apex-vs-libbsc-bsc--bwt-compressor-comparison).
+- **Scaling**: APEX decompress speed scales with GPU hardware — tested on laptop RTX 5070 (672 MB/s Silesia), RTX 4090 shows +15% on some datasets, RTX 5090 reaches 4,403 MB/s on JSON. bsc decompress is CPU-bound (QLFC decode is serial) and does not benefit from better GPU hardware.
 - **bzip2, bzip3, LZMA**: Single-threaded via lzbench 2.2.1 at their best ratio settings.
 - **Decompress**: zstd has significantly faster decompression (LZ77 memcpy-based decode). This is a fundamental algorithm difference, not a threading advantage.
 
@@ -450,15 +453,15 @@ All tests on the same machine (Ryzen 9 8940HX, 16C/32T + RTX 5070 Laptop). zstd 
 
 | Compressor | Ratio | Compress | Decompress |
 |-----------|-------|----------|------------|
-| **APEX Par 16MB** | **28.35x** | **1,257 MB/s** | **1,545 MB/s** |
-| **APEX 1T** | **29.16x** | **417 MB/s** | **1,780 MB/s** |
+| **APEX Par 14MB** | **28.25x** | **1,364 MB/s** | **2,036 MB/s** |
+| **APEX 1T** | **29.16x** | **430 MB/s** | **1,852 MB/s** |
 | zstd -9 -T14 | 21.10x | 1,263 MB/s | 3,419 MB/s |
 | zstd -12 -T14 | 21.29x | 661 MB/s | 3,590 MB/s |
 | zstd -12 -T6 | 21.29x | 388 MB/s | 3,590 MB/s |
 | zstd -15 -T10 | 21.44x | 208 MB/s | 3,641 MB/s |
 | zstd -15 -T6 | 21.44x | 139 MB/s | 3,641 MB/s |
 
-APEX at 28.35x is **34% better ratio** than zstd's best (21.44x). Even zstd -15 with 10 threads cannot match APEX's ratio. APEX compresses 6x faster than zstd -15 T10 while achieving a higher ratio. APEX decompresses at 1,545 MB/s on this laptop — already above typical NVMe throughput, and decompress speed scales with GPU hardware (RTX 5090 reaches 4,403 MB/s on JSON).
+APEX at 28.25x is **32% better ratio** than zstd's best (21.44x). Even zstd -15 with 10 threads cannot match APEX's ratio. APEX compresses 6.6x faster than zstd -15 T10 while achieving a higher ratio. APEX decompresses at 2,036 MB/s on this laptop — already above typical NVMe throughput, and decompress speed scales with GPU hardware (RTX 5090 reaches 4,403 MB/s on JSON).
 
 ### HDFS Logs (1.5 GB)
 
@@ -512,34 +515,36 @@ APEX at 17.32x is **21% better ratio** than zstd's best (14.30x). At similar com
 |-------|---------|-------|--------|
 | **1,689 MB/s** | Large JSON 1GB | 18.43x | Par 20MB |
 | **1,330 MB/s** | GH Events 480MB | 17.54x | Par 18MB |
-| **1,257 MB/s** | Spark Logs 2.8GB | 28.35x | Par 16MB |
+| **1,364 MB/s** | Spark Logs 2.8GB | 28.25x | Par 14MB |
 | **994 MB/s** | HDFS Logs 1.5GB | 16.36x | Par 12MB |
 | **945 MB/s** | LLVM 2.4GB | 4.90x | Par 14MB |
-| **817 MB/s** | Linux 1.5GB | 9.26x | Par 12MB |
+| **802 MB/s** | Linux 1.5GB | 9.26x | Par 12MB |
 | **767 MB/s** | BGL Logs 709MB | 17.32x | Par 12MB |
-| **634 MB/s** | enwik9 954MB | 4.36x | Par 8MB |
+| **658 MB/s** | enwik9 954MB | 4.36x | Par 8MB |
 | **589 MB/s** | Binance BTC 3.7GB | 6.48x | Par 6MB |
 | **583 MB/s** | IMDb TSV 2.6GB | 5.36x | Par 6MB |
-| **541 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
+| **551 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
 | **531 MB/s** | Binance BNB 612MB | 7.27x | Par 6MB |
 
 ### Decompress
 
 | Speed | Dataset | Ratio | Config |
 |-------|---------|-------|--------|
+| **2,069 MB/s** | Spark Logs 2.8GB | 28.13x | Par 12MB |
 | **2,053 MB/s** | Large JSON 1GB | 18.43x | Par 20MB |
+| **2,036 MB/s** | Spark Logs 2.8GB | 28.25x | Par 14MB |
 | **1,965 MB/s** | Large JSON 1GB | 23.11x | 1T |
-| **1,780 MB/s** | Spark Logs 2.8GB | 29.16x | 1T |
+| **1,852 MB/s** | Spark Logs 2.8GB | 29.16x | 1T |
 | **1,758 MB/s** | GH Events 480MB | 17.54x | Par 18MB |
 | **1,629 MB/s** | LLVM 2.4GB | 4.56x | 1T |
-| **1,545 MB/s** | Spark Logs 2.8GB | 28.35x | Par 16MB |
 | **1,402 MB/s** | LLVM 2.4GB | 4.90x | Par 14MB |
 | **1,357 MB/s** | HDFS Logs 1.5GB | 17.79x | 1T |
 | **1,330 MB/s** | HDFS Logs 1.5GB | 16.36x | Par 12MB |
-| **1,201 MB/s** | Linux 1.5GB | 9.64x | 1T |
+| **1,268 MB/s** | Linux 1.5GB | 9.64x | 1T |
 | **1,102 MB/s** | BGL Logs 709MB | 17.32x | Par 12MB |
 | **860 MB/s** | IMDb TSV 2.6GB | 5.53x | 1T |
-| **672 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
+| **794 MB/s** | enwik9 954MB | 4.36x | Par 8MB |
+| **704 MB/s** | Silesia 202MB | 4.00x | Par 6MB |
 
 ### Ratio
 
@@ -655,11 +660,11 @@ APEX was independently tested on a completely different system to verify that pu
 
 | Dataset | Our Laptop (RTX 5070) | Vast.ai (RTX 4090) | Difference |
 |---------|----------------------|-------------------|------------|
-| Silesia C/D | 524 / 666 MB/s | 559 / 654 MB/s | +7% C, -2% D |
-| enwik9 C/D | 619 / 671 MB/s | **717 / 698** MB/s | **+16% C**, +4% D |
-| Linux Kernel C/D | 817 / 999 MB/s | **894 / 1,049** MB/s | **+9% C**, +5% D |
+| Silesia C/D | 551 / 704 MB/s | 559 / 654 MB/s | +1% C, -7% D |
+| enwik9 C/D | 658 / 794 MB/s | **717 / 698** MB/s | **+9% C**, -12% D |
+| Linux Kernel C/D | 802 / 1,059 MB/s | **894 / 1,049** MB/s | **+11% C**, -1% D |
 | Large JSON C/D | 1,642 / 2,022 MB/s | **1,793 / 2,324** MB/s | **+9% C**, **+15% D** |
-| Genome C/D | 479 / 757 MB/s | **771 / 745** MB/s | **+61% C**, -2% D |
+| Genome C/D | 493 / 887 MB/s | **771 / 745** MB/s | **+56% C**, -16% D |
 
 ### Ratio Verification
 
@@ -931,13 +936,15 @@ Tested on our development machine (Ryzen 9 8940HX + RTX 5070 Laptop). Wall-clock
 
 ### Results
 
-| Dataset | bsc Best Ratio | bsc C Speed | APEX Best Ratio | APEX Best C Speed | APEX Speedup |
+| Dataset | bsc Best Ratio | bsc C Speed | APEX Best Ratio | APEX Best C Speed | APEX GPU vs bsc CPU |
 |---------|---------------|-------------|-----------------|-------------------|-------------|
-| Silesia 202MB | **4.47x** | 58 MB/s | 4.08x | **541 MB/s** | **9.3x faster** |
-| enwik9 954MB | **5.49x** | 57 MB/s | 5.04x | **634 MB/s** | **14x faster** |
-| Linux Kernel 1.5GB | **10.95x** | 75 MB/s | 9.64x | **817 MB/s** | **11x faster** |
-| Large JSON 1.1GB | 23.14x | 119 MB/s | **23.11x** | **1,675 MB/s** | **18x faster** |
-| Genome 3.0GB | 4.49x | 63 MB/s | **4.48x** | **479 MB/s** | **7.6x faster** |
+| Silesia 202MB | **4.47x** | 58 MB/s | 4.08x | **541 MB/s** | 9.3x faster C |
+| enwik9 954MB | **5.49x** | 57 MB/s | 5.04x | **634 MB/s** | 14x faster C |
+| Linux Kernel 1.5GB | **10.95x** | 75 MB/s | 9.64x | **817 MB/s** | 11x faster C |
+| Large JSON 1.1GB | **23.14x** | 119 MB/s | 23.11x | **1,675 MB/s** | 18x faster C |
+| Genome 3.0GB | **4.49x** | 63 MB/s | 4.48x | **479 MB/s** | 7.6x faster C |
+
+*Speedup compares APEX (14 CPU threads + GPU) vs bsc (CPU-only BWT, all cores via OpenMP). bsc also has GPU Sort Transform modes with comparable compress speeds on some datasets. See [GPU vs GPU analysis](https://github.com/Rkcr7/apex/blob/main/docs/BSC_COMPARISON_ANALYSIS.md).*
 
 ### Per-Dataset Details
 
@@ -945,48 +952,76 @@ Tested on our development machine (Ryzen 9 8940HX + RTX 5070 Laptop). Wall-clock
 
 | Compressor | Config | Compress | Decompress | Ratio | RT |
 |-----------|--------|----------|------------|-------|----|
-| bsc | default (-b25) | 58 MB/s | 309 MB/s | 4.42x | PASS |
-| bsc | -e2 (best ratio mode) | 56 MB/s | 228 MB/s | **4.47x** | PASS |
-| APEX | 1T | 227 MB/s | 613 MB/s | 4.02x | PASS |
-| **APEX** | **Par 6MB** | **541 MB/s** | **672 MB/s** | 4.00x | PASS |
+| bsc | -b6 -m0 (CPU BWT) | 58 MB/s | 309 MB/s | 4.42x | PASS |
+| bsc | -b6 -m0 -e2 (CPU BWT best) | 56 MB/s | 228 MB/s | **4.47x** | PASS |
+| bsc | -b6 -m0 -e0 -G (GPU BWT fast) | 277 MB/s | 338 MB/s | 4.27x | PASS |
+| bsc | -b6 -m5 -e0 -G (GPU ST5 fast) | 380 MB/s | 211 MB/s | 4.22x | PASS |
+| APEX | 1T | 212 MB/s | **594 MB/s** | 4.02x | PASS |
+| **APEX** | **Par 6MB** | **551 MB/s** | **704 MB/s** | 4.00x | PASS |
+
+On Silesia: APEX Par 6MB is faster than all bsc configs on both compress and decompress. bsc GPU BWT (277 MB/s compress) is comparable but APEX is still 2x faster. bsc wins ratio by 7-12%. bsc GPU ST5 decompresses at only 211 MB/s — **3.3x slower than APEX GPU (704 MB/s)** and even slower than APEX CPU-only mode (424 MB/s, no GPU at all).
 
 **enwik9 (954 MB):**
 
 | Compressor | Config | Compress | Decompress | Ratio | RT |
 |-----------|--------|----------|------------|-------|----|
-| bsc | -b100 -e2 | 44 MB/s | 268 MB/s | **5.49x** | PASS |
-| APEX | 1T | 244 MB/s | 698 MB/s | 5.04x | PASS |
-| **APEX** | **Par 8MB** | **634 MB/s** | **697 MB/s** | 4.36x | PASS |
+| bsc | -b100 -e2 (CPU BWT) | 44 MB/s | 268 MB/s | **5.49x** | PASS |
+| bsc | -b6 -m0 -e0 -G (GPU BWT fast) | 466 MB/s | 366 MB/s | 4.65x | PASS |
+| bsc | -b6 -m5 -e0 -G (GPU ST5 fast) | **774 MB/s** | 213 MB/s | 4.49x | PASS |
+| APEX | 1T | 248 MB/s | **755 MB/s** | 5.04x | PASS |
+| **APEX** | **Par 8MB** | **658 MB/s** | **794 MB/s** | 4.36x | PASS |
+
+On enwik9: bsc GPU ST5 fast beats APEX on compress (774 vs 658 MB/s) but decompresses at only 213 MB/s — **3.7x slower than APEX GPU (794 MB/s)**. bsc wins ratio by 10-26% depending on config. ST decompress degrades further at higher orders (ST8: 132 MB/s = 6.0x slower than APEX).
 
 **Large JSON (1.1 GB):**
 
 | Compressor | Config | Compress | Decompress | Ratio | RT |
 |-----------|--------|----------|------------|-------|----|
-| bsc | -b100 -e2 | 93 MB/s | 603 MB/s | 23.14x | PASS |
+| bsc | -b100 -e2 (CPU BWT) | 93 MB/s | 603 MB/s | 23.14x | PASS |
 | **APEX** | **1T** | **560 MB/s** | **2,229 MB/s** | **23.11x** | PASS |
 | **APEX** | **Par 18MB** | **1,675 MB/s** | **1,989 MB/s** | 18.11x | PASS |
+
+On JSON: ratio is tied (23.14x vs 23.11x). APEX is 6-18x faster compress and 3.3x faster decompress.
+
+**Spark Logs (2.8 GB):**
+
+| Compressor | Config | Compress | Decompress | Ratio | RT |
+|-----------|--------|----------|------------|-------|----|
+| bsc | -b6 -m0 -e0 -G (GPU BWT fast) | 691 MB/s | 696 MB/s | 29.36x | PASS |
+| bsc | -b6 -m5 -e0 -G (GPU ST5 fast) | **1,450 MB/s** | 678 MB/s | 29.66x | PASS |
+| bsc | -b6 -m5 -e2 -G (GPU ST5 best) | 1,054 MB/s | 551 MB/s | **32.18x** | PASS |
+| APEX | 1T | 430 MB/s | **1,852 MB/s** | **29.16x** | PASS |
+| **APEX** | **Par 14MB** | **1,364 MB/s** | **2,036 MB/s** | 28.25x | PASS |
+
+On Spark: bsc GPU ST5 fast beats APEX on compress (1,450 vs 1,364 MB/s) and wins ratio (29.66x vs 28.25x). But APEX decompresses **3.0x faster** (2,036 vs 678 MB/s). bsc's best ratio config (ST5 -e2, 32.18x) decompresses at only 551 MB/s — **3.7x slower than APEX GPU**. This is bsc's strongest dataset for GPU ST compress speed, yet APEX still dominates decompress by 3-4x.
 
 **Human Genome (3.0 GB):**
 
 | Compressor | Config | Compress | Decompress | Ratio | RT |
 |-----------|--------|----------|------------|-------|----|
-| bsc | default (-b25) | 63 MB/s | 336 MB/s | 4.46x | PASS |
-| bsc | -b100 | **OOM KILLED** | — | — | CRASH |
-| **APEX** | **1T** | **212 MB/s** | **828 MB/s** | **4.48x** | PASS |
-| **APEX** | **Par 8MB** | **479 MB/s** | **757 MB/s** | 4.36x | PASS |
+| bsc | default (-b25, CPU BWT) | 63 MB/s | 336 MB/s | 4.46x | PASS |
+| bsc | -b100 (CPU BWT) | **OOM KILLED** | — | — | CRASH |
+| **APEX** | **1T** | **219 MB/s** | **801 MB/s** | **4.48x** | PASS |
+| **APEX** | **Par 6MB** | **493 MB/s** | **887 MB/s** | 4.35x | PASS |
+
+On Genome: APEX 1T actually beats bsc on ratio (4.48x vs 4.46x) while being 3.5x faster compress and 2.4x faster decompress. bsc OOM crashes with large blocks.
 
 ### Key Differences
 
 | | APEX | libbsc (bsc) |
 |---|---|---|
-| **BWT engine** | GPU via libcubwt | CPU via libsais (OpenMP) |
-| **Coding approach** | Custom | Different (stronger model) |
-| **Ratio winner** | — | bsc by 5-14% on text/mixed |
-| **Speed winner** | APEX by 7-18x | — |
+| **BWT engine** | GPU via libcubwt | CPU via libsais (OpenMP); GPU via Sort Transform (-G) |
+| **Coding approach** | Adaptive nibble order-1 rANS | QLFC (stronger entropy model) |
+| **Ratio winner** | — | bsc by 5-15% on text/mixed |
+| **Compress speed** | APEX GPU 7-18x faster than bsc CPU; bsc GPU ST comparable/faster on some repetitive data | bsc GPU ST beats APEX on large repetitive data (Spark, enwik9) |
+| **Decompress speed** | **APEX 2-4x faster consistently** (GPU iBWT) | bsc QLFC decode is inherently serial; ST decompress degrades 32-63% at higher orders |
 | **On repetitive data** | Tied (<0.2% ratio difference) | Tied |
-| **Large files (3GB+)** | Handles fine (GPU VRAM) | OOM killed with large blocks |
+| **Large files (3GB+)** | Handles fine (GPU VRAM) | OOM killed with large blocks (-b100 on Genome) |
+| **Scaling** | Decompress scales with GPU hardware (tested: laptop RTX 5070 → desktop RTX 4090 → RTX 5090) | Decompress is CPU-bound, does not benefit from better GPU |
 
-bsc uses a stronger coding model — it compresses ~5-14% better on mixed/text data. APEX is 7-18x faster due to GPU acceleration. On highly repetitive data (JSON, genomic), the ratio gap disappears.
+**Summary:** bsc's QLFC entropy model compresses 5-15% better on text/mixed data. APEX GPU compress is 7-18x faster than bsc CPU-only mode; bsc also has GPU Sort Transform modes with comparable or faster compress on large repetitive datasets. **APEX's strongest advantage is decompress speed**: consistently 2-4x faster than all bsc configurations tested (GPU iBWT vs serial QLFC decode), and this gap widens with better GPU hardware. bsc Sort Transform decompress degrades significantly at higher orders (ST8: 129-132 MB/s on text — slower than APEX CPU-only mode). On highly repetitive data (JSON, genomic), the ratio gap between APEX and bsc disappears.
+
+> **Note:** The bsc comparison above tests bsc in **CPU-only BWT mode** (-m0). bsc also has GPU modes using Sort Transform (-m3 to -m8 with -G) which achieve comparable or faster compress speeds on some datasets. A comprehensive GPU vs GPU comparison (both using same libcubwt library) is available in the [main repo analysis](https://github.com/Rkcr7/apex/blob/main/docs/BSC_COMPARISON_ANALYSIS.md).
 
 ---
 
@@ -1072,7 +1107,7 @@ The numbers below are from `apex-cpu-avx2` on our development machine (Ryzen 9 8
 - **826 MB/s compress** and **1,551 MB/s decompress** on Large JSON — no GPU
 - **724 MB/s / 1,402 MB/s** on GH Events — no GPU
 - CPU-only 1T gets **higher ratio than GPU** on some data (enwik9: 5.20x vs 5.04x, Genome: 4.51x vs 4.48x)
-- **131 MB/s at 4.00x on Silesia** — 2.3x faster than libbsc, 10x faster than bzip2, 44x faster than LZMA, all without GPU
+- **131 MB/s at 4.00x on Silesia** — 2.3x faster than CPU-only bsc on compress (bsc gets ~10% better ratio via QLFC), 10x faster than bzip2, 44x faster than LZMA, all without GPU
 
 ### CPU-Only vs GPU Mode
 
@@ -1084,4 +1119,4 @@ The numbers below are from `apex-cpu-avx2` on our development machine (Ryzen 9 8
 | Large JSON | 826 / 1,551 | 1,642 / 2,022 | 2.0x / 1.3x |
 | Genome | 128 / 366 | 479 / 757 | 3.7x / 2.1x |
 
-GPU gives 2-4x faster compress. But CPU-only is already faster than every existing BWT compressor — even without touching a GPU.
+GPU gives 2-4x faster compress. CPU-only APEX already compresses faster than CPU-only bsc, bzip2, and bzip3 — even without touching a GPU (bsc achieves 5-15% better ratio via QLFC).

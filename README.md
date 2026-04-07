@@ -8,20 +8,20 @@ APEX achieves high compression ratios at high throughput — a combination that 
 
 | Data Type | Ratio | Compress | Decompress | Config |
 |-----------|-------|----------|------------|--------|
-| Mixed corpus (Silesia 202MB) | **4.00x** | **541 MB/s** | **672 MB/s** | Par 6MB |
-| Server logs (Spark 2.8GB) | **28.35x** | **1,257 MB/s** | **1,545 MB/s** | Par 16MB |
+| Mixed corpus (Silesia 202MB) | **4.00x** | **551 MB/s** | **704 MB/s** | Par 6MB |
+| Server logs (Spark 2.8GB) | **28.25x** | **1,364 MB/s** | **2,036 MB/s** | Par 14MB |
 | Structured data (JSON 1.1GB) | **18.11x** | **1,642 MB/s** | **2,022 MB/s** | Par 18MB |
 | HPC logs (BGL 709MB) | **17.32x** | **767 MB/s** | **1,102 MB/s** | Par 12MB |
-| Source code (Linux Kernel 1.5GB) | **9.26x** | **817 MB/s** | **999 MB/s** | Par 12MB |
+| Source code (Linux Kernel 1.5GB) | **9.26x** | **802 MB/s** | **1,059 MB/s** | Par 12MB |
 | Financial tick data (Binance 612MB) | **7.27x** | **531 MB/s** | **682 MB/s** | Par 6MB |
 | Analytics export (IMDb 2.6GB TSV) | **5.36x** | **583 MB/s** | **719 MB/s** | Par 6MB |
-| Genomic data (Human Genome 3GB) | **4.36x** | **479 MB/s** | **757 MB/s** | Par 8MB |
+| Genomic data (Human Genome 3GB) | **4.35x** | **493 MB/s** | **887 MB/s** | Par 6MB |
 
 > Numbers above are from a **consumer laptop** (RTX 5070 Laptop, 8 GB GDDR7, 16 GB RAM) — not a server or workstation. No per-dataset tuning — out-of-the-box performance. RTX 5090 results: up to 1,899 MB/s compress, 4,403 MB/s decompress. Server-class hardware would be expected to improve further. See [BENCHMARKS.md](BENCHMARKS.md) for all 21 datasets across 3 systems.
 
 Tested on 3 systems with different GPUs (RTX 5070, 4090, 5090) and CPUs (Zen 2, Zen 4). Ratios are deterministic — identical across all hardware. Speeds scale with GPU compute and CPU core count.
 
-**No GPU? APEX still works.** CPU-only mode: 826 MB/s on JSON, 253 MB/s on Linux Kernel, 131 MB/s at 4.0x on Silesia — faster than every BWT compressor without GPU. See [CPU-Only Mode](BENCHMARKS.md#cpu-only-mode-no-gpu-required).
+**No GPU? APEX still works.** CPU-only mode: 131 MB/s at 4.0x on Silesia — ~2x faster compress than CPU-only bsc (which gets ~10% better ratio via QLFC). Up to 826 MB/s on highly repetitive data. See [CPU-Only Mode](BENCHMARKS.md#cpu-only-mode-no-gpu-required).
 
 **RAM note:** This testing binary reads the full file into memory before processing. `bench` needs ~3x file size in RAM, `compress`/`decompress` need ~1.5x. The compression algorithm itself is block-based and does not require the full file in memory — this is specific to the current testing CLI, not an algorithm constraint. See [memory details](#how-each-command-uses-memory).
 
@@ -143,7 +143,7 @@ chmod +x apex-cpu-avx2
 
 All binaries produce **identical compressed files** — same format, same ratios. A file compressed with `apex-cpu-avx2` can be decompressed with `apex-gpu-avx512` and vice versa.
 
-CPU-only APEX is faster than every BWT compressor (bsc, bzip2, bzip3, LZMA) even without GPU. See [CPU-Only benchmarks](BENCHMARKS.md#cpu-only-mode-no-gpu-required).
+CPU-only APEX compresses faster than CPU-only bsc, bzip2, and bzip3 even without GPU (bsc achieves 5-15% better ratio via QLFC). See [CPU-Only benchmarks](BENCHMARKS.md#cpu-only-mode-no-gpu-required).
 
 ### What's NOT included
 
@@ -382,12 +382,12 @@ Workers: 14 threads               ← Auto-detected worker count (your cores - 2
 
 ```
 Compressed: 211957760 -> 52983644 bytes (4.00x ratio)
-Speed:      541 MB/s  Time: 373 ms  Threads: 14
+Speed:      551 MB/s  Time: 367 ms  Threads: 14
 ```
 
 - **211957760 -> 52983644**: Original size → compressed size (in bytes)
 - **4.00x ratio**: Original / compressed = how much smaller. Higher = better.
-- **541 MB/s**: Compression throughput (original_size / time). Higher = faster.
+- **551 MB/s**: Compression throughput (original_size / time). Higher = faster.
 - **Threads: 14**: Worker threads used.
 
 ### What bench output shows
@@ -395,8 +395,8 @@ Speed:      541 MB/s  Time: 373 ms  Threads: 14
 ```
 Config        Compress    Decomp    Ratio  Verify
 ------        --------    ------    -----  ------
-1T              226 MB/s    613 MB/s   4.02x  PASS
-Par 6MB         541 MB/s    672 MB/s   4.00x  PASS
+1T              212 MB/s    594 MB/s   4.02x  PASS
+Par 6MB         551 MB/s    704 MB/s   4.00x  PASS
 ```
 
 - **1T**: Single-thread mode (best ratio, slower). Uses 1 GPU transform + parallel encoding.
@@ -485,10 +485,10 @@ Example output:
 ```
 Config        Compress    Decomp    Ratio  Verify
 ------        --------    ------    -----  ------
-1T              226 MB/s    613 MB/s   4.02x  PASS
-Par 6MB         541 MB/s    672 MB/s   4.00x  PASS
-Par 8MB         524 MB/s    654 MB/s   4.01x  PASS
-Par 12MB        413 MB/s    621 MB/s   4.04x  PASS
+1T              212 MB/s    594 MB/s   4.02x  PASS
+Par 6MB         551 MB/s    704 MB/s   4.00x  PASS
+Par 8MB         539 MB/s    699 MB/s   4.01x  PASS
+Par 12MB        410 MB/s    522 MB/s   4.04x  PASS
 ...
 ```
 
@@ -779,31 +779,31 @@ Our test system: **AMD Ryzen 9 8940HX (16C/32T) + NVIDIA RTX 5070 Laptop (8GB) +
 
 | Dataset | Size | Compress | Decompress | Ratio | Config |
 |---------|------|----------|------------|-------|--------|
-| Silesia (mixed) | 202 MB | 541 MB/s | 672 MB/s | 4.00x | Par 6MB |
-| Spark Logs | 2.8 GB | 1,257 MB/s | 1,545 MB/s | 28.35x | Par 16MB |
+| Silesia (mixed) | 202 MB | 551 MB/s | 704 MB/s | 4.00x | Par 6MB |
+| Spark Logs | 2.8 GB | 1,364 MB/s | 2,036 MB/s | 28.25x | Par 14MB |
 | Large JSON | 1.1 GB | 1,642 MB/s | 2,022 MB/s | 18.11x | Par 18MB |
 | HDFS Logs | 1.5 GB | 994 MB/s | 1,330 MB/s | 16.36x | Par 12MB |
 | BGL Logs | 709 MB | 767 MB/s | 1,102 MB/s | 17.32x | Par 12MB |
-| Linux Kernel | 1.5 GB | 817 MB/s | 999 MB/s | 9.26x | Par 12MB |
+| Linux Kernel | 1.5 GB | 802 MB/s | 1,059 MB/s | 9.26x | Par 12MB |
 | Binance BNB | 612 MB | 531 MB/s | 682 MB/s | 7.27x | Par 6MB |
 | IMDb TSV | 2.6 GB | 583 MB/s | 719 MB/s | 5.36x | Par 6MB |
-| enwik9 (text) | 954 MB | 634 MB/s | 697 MB/s | 4.36x | Par 8MB |
-| Human Genome | 3.0 GB | 479 MB/s | 757 MB/s | 4.36x | Par 8MB |
+| enwik9 (text) | 954 MB | 658 MB/s | 794 MB/s | 4.36x | Par 8MB |
+| Human Genome | 3.0 GB | 493 MB/s | 887 MB/s | 4.35x | Par 6MB |
 
 ### Ratio Mode (1T)
 
 | Dataset | Ratio | Compress | Decompress |
 |---------|-------|----------|------------|
-| Spark Logs | 29.16x | 417 MB/s | 1,780 MB/s |
+| Spark Logs | 29.16x | 430 MB/s | 1,852 MB/s |
 | Large JSON | 23.11x | 540 MB/s | 1,965 MB/s |
 | HDFS Logs | 17.79x | 376 MB/s | 1,357 MB/s |
 | BGL Logs | 17.03x | 324 MB/s | 1,033 MB/s |
-| Linux Kernel | 9.64x | 329 MB/s | 1,201 MB/s |
+| Linux Kernel | 9.64x | 341 MB/s | 1,268 MB/s |
 | Binance BNB | 7.10x | 247 MB/s | 654 MB/s |
 | IMDb TSV | 5.53x | 249 MB/s | 860 MB/s |
-| enwik9 | 5.04x | 241 MB/s | 642 MB/s |
-| Human Genome | 4.48x | 213 MB/s | 828 MB/s |
-| Silesia | 4.02x | 226 MB/s | 578 MB/s |
+| enwik9 | 5.04x | 248 MB/s | 755 MB/s |
+| Human Genome | 4.48x | 219 MB/s | 801 MB/s |
+| Silesia | 4.02x | 212 MB/s | 594 MB/s |
 
 **Your numbers will differ** based on your GPU, CPU, and RAM. Run `./apex bench` and `./apex tune` to measure YOUR system.
 
@@ -932,7 +932,7 @@ Par 6MB         XXX MB/s    XXX MB/s   4.00x  PASS
 
 APEX uses [libcubwt](https://github.com/IlyaGrebnov/libcubwt) and [libsais](https://github.com/IlyaGrebnov/libsais) — both by [Ilya Grebnov](https://github.com/IlyaGrebnov). These are exceptional libraries that make high-performance BWT practical.
 
-We also benchmark against [libbsc](https://github.com/IlyaGrebnov/libbsc) (also by Grebnov) — a BWT compressor using the same underlying libraries. bsc achieves 5-14% better ratio; APEX is 7-18x faster. Full comparison in [BENCHMARKS.md](BENCHMARKS.md#apex-vs-libbsc-bsc--bwt-compressor-comparison).
+We also benchmark against [libbsc](https://github.com/IlyaGrebnov/libbsc) (also by Grebnov) — a BWT compressor using the same underlying libraries. bsc achieves 5-15% better ratio via its QLFC entropy model. APEX GPU compress is 7-18x faster than bsc CPU-only mode; bsc also has GPU modes (-G) with comparable compress speeds on some datasets. APEX GPU decompress is consistently 2-4x faster than bsc across all tested configurations, and this advantage scales with GPU hardware. Full comparison in [BENCHMARKS.md](BENCHMARKS.md#apex-vs-libbsc-bsc--bwt-compressor-comparison) and detailed GPU vs GPU analysis in the [main repo](https://github.com/Rkcr7/apex/blob/main/docs/BSC_COMPARISON_ANALYSIS.md).
 
 ## Disclaimers
 
